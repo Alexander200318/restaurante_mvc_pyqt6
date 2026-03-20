@@ -139,15 +139,14 @@ class EmpleadosModel(BaseModel):
         return self._obtener_con_manejo_errores(_obtener)
     
     def eliminar_empleado(self, empleado_id: int) -> Tuple[bool, None, str]:
-        """Eliminar un empleado"""
+        """Eliminar un empleado de la base de datos"""
         def _eliminar(session):
             empleado = session.query(Empleado).filter(Empleado.id == empleado_id).first()
             if not empleado:
                 raise ValueError(f"Empleado {empleado_id} no encontrado")
             
-            # Mejor: cambiar a inactivo en lugar de eliminar
-            # Esto preserva histórico de pedidos
-            empleado.estado = config.EmpleadoEstado.INACTIVO
+            # Eliminar el registro de la base de datos
+            session.delete(empleado)
             return None
         
         return self._ejecutar_con_manejo_errores(_eliminar)

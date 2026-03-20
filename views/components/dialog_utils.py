@@ -84,8 +84,13 @@ class FormDialog(ctk.CTkToplevel):
         on_submit: función que recibe dict de valores
         """
         super().__init__(parent)
+        
+        # Importar config para usar colores
+        import config
+        self.configure(fg_color="#fffaf5")
+        
         self.title(titulo)
-        self.geometry("400x300")
+        self.geometry("450x400")
         self.resizable(False, False)
         
         self.campos = campos
@@ -107,12 +112,17 @@ class FormDialog(ctk.CTkToplevel):
     
     def _crear_formulario(self):
         """Crear widgets del formulario"""
-        frame = ctk.CTkScrollableFrame(self)
+        frame = ctk.CTkScrollableFrame(self, fg_color="#fffaf5")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         for nombre_campo, config in self.campos.items():
-            # Label
-            label = ctk.CTkLabel(frame, text=config.get('label', nombre_campo) + ":")
+            # Label con color naranja
+            label = ctk.CTkLabel(
+                frame, 
+                text=config.get('label', nombre_campo) + ":",
+                text_color="#ff8c42",
+                font=("Helvetica", 11, "bold")
+            )
             label.pack(anchor="w", pady=(10, 0))
             
             # Widget input según tipo
@@ -120,13 +130,13 @@ class FormDialog(ctk.CTkToplevel):
             valor_inicial = config.get('value', '')
             
             if tipo == 'text':
-                widget = ctk.CTkEntry(frame)
+                widget = ctk.CTkEntry(frame, placeholder_text=config.get('label', nombre_campo))
                 if valor_inicial:
                     widget.insert(0, str(valor_inicial))
                 widget.pack(fill="x", pady=(0, 5))
             
             elif tipo == 'number':
-                widget = ctk.CTkEntry(frame)
+                widget = ctk.CTkEntry(frame, placeholder_text=config.get('label', nombre_campo))
                 if valor_inicial:
                     widget.insert(0, str(valor_inicial))
                 widget.pack(fill="x", pady=(0, 5))
@@ -155,19 +165,23 @@ class FormDialog(ctk.CTkToplevel):
         
         btn_ok = ctk.CTkButton(
             frame_botones,
-            text="Enviar",
+            text="✓ Guardar",
             command=self._on_ok,
             fg_color="#4caf50",
-            hover_color="#45a049"
+            hover_color="#45a049",
+            font=("Helvetica", 11, "bold"),
+            text_color="white"
         )
         btn_ok.pack(side="left", padx=5)
         
         btn_cancel = ctk.CTkButton(
             frame_botones,
-            text="Cancelar",
+            text="✕ Cancelar",
             command=self.destroy,
             fg_color="#f44336",
-            hover_color="#da190b"
+            hover_color="#da190b",
+            font=("Helvetica", 11, "bold"),
+            text_color="white"
         )
         btn_cancel.pack(side="left", padx=5)
     
