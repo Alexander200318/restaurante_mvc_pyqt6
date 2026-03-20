@@ -50,6 +50,8 @@ class Sidebar(ctk.CTkFrame):
         
         # Definir módulos
         modulos = [
+            ("dashboard", "📊 Dashboard"),
+            ("clientes", "👤 Clientes"),
             ("mesas", "🪑 Mesas"),
             ("pedidos", "📋 Pedidos"),
             ("empleados", "👥 Empleados"),
@@ -92,8 +94,8 @@ class Sidebar(ctk.CTkFrame):
         )
         info_texto.pack()
         
-        # Activar módulo inicial (mesas)
-        self._cambiar_modulo("mesas")
+        # Activar módulo inicial (dashboard)
+        self._cambiar_modulo("dashboard")
     
     def _cambiar_modulo(self, modulo_id: str):
         """Cambiar módulo activo"""

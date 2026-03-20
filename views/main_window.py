@@ -3,6 +3,8 @@ Ventana Principal - Gestión de Navegación
 """
 import customtkinter as ctk
 from views.sidebar import Sidebar
+from views.pages.dashboard import DashboardPage
+from views.pages.clientes_page import ClientesPage
 from views.pages.mesas_page import MesasPage
 from views.pages.pedidos_page import PedidosPage
 from views.pages.empleados_page import EmpleadosPage
@@ -17,6 +19,8 @@ class MainWindow:
     
     # Mapeo de módulos a páginas
     MODULOS = {
+        'dashboard': DashboardPage,
+        'clientes': ClientesPage,
         'mesas': MesasPage,
         'pedidos': PedidosPage,
         'empleados': EmpleadosPage,
@@ -51,8 +55,8 @@ class MainWindow:
         self.sidebar = Sidebar(self.frame_principal, on_module_change=self._cambiar_modulo, width=250)
         self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
         
-        # Ir a primer módulo (mesas)
-        self._cambiar_modulo('mesas')
+        # Ir a primer módulo (dashboard)
+        self._cambiar_modulo('dashboard')
     
     def _cambiar_modulo(self, modulo_id: str):
         """
@@ -61,16 +65,24 @@ class MainWindow:
         Args:
             modulo_id: ID del módulo (mesas, pedidos, etc)
         """
-        # Limpiar página anterior
-        if self.pagina_actual:
-            self.pagina_actual.pack_forget()
-            self.pagina_actual.destroy()
+        # Limpiar contenido anterior
+        for widget in self.frame_contenido.winfo_children():
+            widget.destroy()
         
         # Crear nueva página
         if modulo_id in self.MODULOS:
             clase_pagina = self.MODULOS[modulo_id]
-            self.pagina_actual = clase_pagina(self.frame_contenido)
-            self.pagina_actual.pack(fill="both", expand=True)
+            
+            # Crear instancia con db_manager si es dashboard
+            if modulo_id == 'dashboard':
+                from database.db_manager import DatabaseManager
+                db_manager = DatabaseManager()
+                self.pagina_actual = clase_pagina(self.frame_contenido, db_manager)
+                self.pagina_actual.crear()
+            else:
+                self.pagina_actual = clase_pagina(self.frame_contenido)
+                self.pagina_actual.pack(fill="both", expand=True)
+            
             self.modulo_actual = modulo_id
             
             # Refrescar datos si la página tiene método
