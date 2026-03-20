@@ -1,0 +1,1192 @@
+"""
+Página: Gestión de Mesas - Diseño Grid Visual React
+"""
+import customtkinter as ctk
+from controllers.mesas_controller import MesasController
+from controllers.clientes_controller import ClientesController
+from views.components.dialog_utils import DialogUtils
+import config
+
+class MesasPage(ctk.CTkFrame):
+    """Módulo de Mesas con Grid Visual"""
+    
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, fg_color=config.COLORS["light_bg"], **kwargs)
+        
+        self.controller = MesasController()
+        self.controller_clientes = ClientesController()
+        self.mesa_seleccionada = None
+        self.grid_frame = None
+        self.mesa_cards = {}
+        
+        self._crear_ui()
+        self.refrescar_tabla()
+    
+    def _crear_ui(self):
+        """Crear interfaz"""
+        # === HEADER ===
+        frame_header = ctk.CTkFrame(self, fg_color=config.COLORS["primary"], height=80)
+        frame_header.pack(side="top", fill="x", padx=0, pady=0)
+        frame_header.pack_propagate(False)
+        
+        # Contenedor para título y botones
+        frame_header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
+        frame_header_content.pack(fill="both", expand=True, padx=20, pady=15)
+        
+        # Lado izquierdo: Título
+        frame_titulo = ctk.CTkFrame(frame_header_content, fg_color="transparent")
+        frame_titulo.pack(side="left", fill="both", expand=True)
+        
+        titulo = ctk.CTkLabel(
+            frame_titulo,
+            text="🗺️ Mapa de Mesas",
+            text_color="white",
+            font=("Helvetica", 28, "bold")
+        )
+        titulo.pack(anchor="w")
+        
+        subtitulo = ctk.CTkLabel(
+            frame_titulo,
+            text="Gestiona el estado de las mesas y crea nuevos pedidos",
+            text_color="#E8EAED",
+            font=("Helvetica", 11)
+        )
+        subtitulo.pack(anchor="w", pady=(3, 0))
+        
+        # Lado derecho: Botón Nueva Mesa
+        btn_nueva = ctk.CTkButton(
+            frame_header_content,
+            text="➕ Nueva Mesa",
+            command=self.crear_mesa,
+            fg_color=config.COLORS["success"],
+            hover_color="#0E9F6E",
+            text_color="white",
+            font=("Helvetica", 12, "bold")
+        )
+        btn_nueva.pack(side="right", padx=10)
+        
+        # === CONTENIDO PRINCIPAL ===
+        frame_main = ctk.CTkFrame(self, fg_color=config.COLORS["light_bg"])
+        frame_main.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Frame scrollable para el grid
+        self.canvas = ctk.CTkCanvas(
+            frame_main,
+            bg=config.COLORS["light_bg"],
+            highlightthickness=0,
+            height=400
+        )
+        scrollbar = ctk.CTkScrollbar(frame_main, command=self.canvas.yview)
+        self.scrollable_frame = ctk.CTkFrame(
+            self.canvas,
+            fg_color=config.COLORS["light_bg"]
+        )
+        
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Grid frame para las mesas (4 columnas)
+        self.grid_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
+        self.grid_frame.pack(fill="both", expand=True)
+    
+    def refrescar_tabla(self):
+        """Refrescar grid de mesas"""
+        # Limpiar grid anterior
+        for widget in self.grid_frame.winfo_children():
+            widget.destroy()
+        self.mesa_cards = {}
+        
+        # Obtener todas las mesas
+        success, mesas, msg = self.controller.obtener_todas_mesas()
+        if not success or not mesas:
+            label_vacio = ctk.CTkLabel(
+                self.grid_frame,
+                text="No hay mesas disponibles",
+                text_color=config.COLORS["text_dark"],
+                font=("Helvetica", 14)
+            )
+            label_vacio.pack(pady=40)
+            return
+        
+        # Crear grid de 4 columnas
+        columnas = 4
+        for idx, mesa in enumerate(mesas):
+            row = idx // columnas
+            col = idx % columnas
+            self._crear_card_mesa(mesa, row, col)
+    
+    def _crear_card_mesa(self, mesa, row, col):
+        """Crear tarjeta visual para una mesa"""
+        # Determinar colores según estado
+        if mesa.estado.value == "libre":
+            color_fondo = config.COLORS["mesa_libre"]
+            color_borde = "#86EFAC"
+            color_texto = config.COLORS["texto_libre"]
+        elif mesa.estado.value == "ocupada":
+            color_fondo = config.COLORS["mesa_ocupada"]
+            color_borde = "#FECACA"
+            color_texto = config.COLORS["texto_ocupada"]
+        elif mesa.estado.value == "reservada":
+            color_fondo = config.COLORS["mesa_reservada"]
+            color_borde = "#FCD34D"
+            color_texto = config.COLORS["texto_reservada"]
+        else:
+            color_fondo = "#F3F4F6"
+            color_borde = "#D1D5DB"
+            color_texto = "#6B7280"
+        
+        # Crear grid con columnas de igual ancho
+        if row == 0 and col == 0:
+            for c in range(4):
+                self.grid_frame.grid_columnconfigure(c, weight=1)
+        
+        # Frame de la tarjeta
+        card_frame = ctk.CTkFrame(
+            self.grid_frame,
+            fg_color=color_fondo,
+            border_width=2,
+            border_color=color_borde
+        )
+        card_frame.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
+        card_frame.bind("<Button-1>", lambda e: self._on_mesa_click(mesa))
+        
+        # Contenido de la tarjeta
+        frame_content = ctk.CTkFrame(card_frame, fg_color="transparent")
+        frame_content.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        # === NÚMERO EN CÍRCULO ===
+        circle_frame = ctk.CTkFrame(frame_content, fg_color="white", width=70, height=70)
+        circle_frame.pack(pady=(0, 10))
+        circle_frame.pack_propagate(False)
+        
+        label_numero = ctk.CTkLabel(
+            circle_frame,
+            text=str(mesa.numero),
+            text_color="#1F2937",
+            font=("Helvetica", 24, "bold")
+        )
+        label_numero.pack(expand=True)
+        
+        # === ESTADO ===
+        label_estado = ctk.CTkLabel(
+            frame_content,
+            text=mesa.estado.value.capitalize(),
+            text_color=color_texto,
+            font=("Helvetica", 13, "bold")
+        )
+        label_estado.pack(pady=5)
+        
+        # === CAPACIDAD CON ICONO ===
+        frame_capacidad = ctk.CTkFrame(frame_content, fg_color="transparent")
+        frame_capacidad.pack(pady=(5, 0))
+        
+        label_capacidad = ctk.CTkLabel(
+            frame_capacidad,
+            text=f"👥 {mesa.capacidad} personas",
+            text_color="#6B7280",
+            font=("Helvetica", 11)
+        )
+        label_capacidad.pack()
+        
+        # Almacenar referencia
+        self.mesa_cards[mesa.id] = {
+            'frame': card_frame,
+            'mesa': mesa,
+            'color_original': (color_fondo, color_borde)
+        }
+        
+        # Añadir efecto hover
+        card_frame.bind("<Enter>", lambda e: self._on_hover_enter(mesa.id))
+        card_frame.bind("<Leave>", lambda e: self._on_hover_leave(mesa.id))
+    
+    def _on_hover_enter(self, mesa_id):
+        """Efecto hover al pasar ratón"""
+        if mesa_id not in self.mesa_cards:
+            return
+        card_data = self.mesa_cards[mesa_id]
+        card_frame = card_data['frame']
+        
+        # Oscurecer ligeramente el color
+        card_frame.configure(
+            border_color="#EA580C"
+        )
+        card_frame.configure(border_width=3)
+    
+    def _on_hover_leave(self, mesa_id):
+        """Restaurar color original"""
+        if mesa_id not in self.mesa_cards:
+            return
+        card_data = self.mesa_cards[mesa_id]
+        card_frame = card_data['frame']
+        color_fondo, color_borde = card_data['color_original']
+        
+        card_frame.configure(
+            border_color=color_borde,
+            border_width=2
+        )
+    
+    def _on_mesa_click(self, mesa):
+        """Click en una mesa"""
+        self.mesa_seleccionada = mesa
+        
+        if mesa.estado.value.lower() == "libre":
+            self._mostrar_nuevo_pedido(mesa)
+        else:
+            self._mostrar_detalles_mesa(mesa)
+    
+    def _mostrar_detalles_mesa(self, mesa):
+        """Mostrar diálogo con detalles de la mesa"""
+        dialog = ctk.CTkToplevel()
+        dialog.title(f"Mesa {mesa.numero}")
+        dialog.geometry("350x300")
+        dialog.resizable(False, False)
+        dialog.attributes('-topmost', True)  # Mantener en el frente
+        dialog.grab_set()  # Hacerla modal
+        
+        # Frame para contenido
+        frame_content = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame_content.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Estado
+        frame_estado = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
+        frame_estado.pack(fill="x", pady=10)
+        
+        label_estado_title = ctk.CTkLabel(
+            frame_estado,
+            text="Estado",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 10)
+        )
+        label_estado_title.pack(anchor="w", padx=12, pady=(8, 2))
+        
+        estado_color = config.COLORS.get(f"texto_{mesa.estado.value}", "#6B7280")
+        label_estado_value = ctk.CTkLabel(
+            frame_estado,
+            text=mesa.estado.value.capitalize(),
+            text_color=estado_color,
+            font=("Helvetica", 12, "bold")
+        )
+        label_estado_value.pack(anchor="w", padx=12, pady=(0, 8))
+        
+        # Capacidad
+        frame_capacidad = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
+        frame_capacidad.pack(fill="x", pady=10)
+        
+        label_capacidad_title = ctk.CTkLabel(
+            frame_capacidad,
+            text="Capacidad",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 10)
+        )
+        label_capacidad_title.pack(anchor="w", padx=12, pady=(8, 2))
+        
+        label_capacidad_value = ctk.CTkLabel(
+            frame_capacidad,
+            text=f"{mesa.capacidad} personas",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 12, "bold")
+        )
+        label_capacidad_value.pack(anchor="w", padx=12, pady=(0, 8))
+        
+        # Botón liberar si está ocupada
+        if mesa.estado.value.lower() in ["ocupada", "reservada"]:
+            # Botón para agregar más platos
+            btn_agregar = ctk.CTkButton(
+                frame_content,
+                text="➕ Agregar Platos",
+                command=lambda: self._agregar_platos_pedido_existente(mesa),
+                fg_color=config.COLORS["primary"],
+                hover_color="#D64B1E",
+                text_color="white",
+                font=("Helvetica", 12, "bold")
+            )
+            btn_agregar.pack(fill="x", pady=(0, 10))
+            
+            btn_liberar = ctk.CTkButton(
+                frame_content,
+                text="🔓 Liberar Mesa",
+                command=lambda: self._liberar_mesa(mesa, dialog),
+                fg_color="#EF4444",
+                hover_color="#DC2626",
+                text_color="white",
+                font=("Helvetica", 12, "bold")
+            )
+            btn_liberar.pack(fill="x", pady=10)
+    
+    def _liberar_mesa(self, mesa, dialog):
+        """Liberar una mesa"""
+        success, _, msg = self.controller.liberar_mesa(mesa.id)
+        if success:
+            DialogUtils.mostrar_exito("Éxito", "Mesa liberada correctamente")
+            dialog.destroy()
+            self.refrescar_tabla()
+        else:
+            DialogUtils.mostrar_error("Error", msg)
+    
+    def _mostrar_nuevo_pedido(self, mesa):
+        """Mostrar dialog con sistema completo de nuevo pedido (React-like)"""
+        from controllers.empleados_controller import EmpleadosController
+        from controllers.platos_controller import PlatosController
+        
+        # Cargar datos
+        controller_empleados = EmpleadosController()
+        controller_platos = PlatosController()
+        
+        success_emp, meseros, _ = controller_empleados.obtener_meseros_activos()
+        success_platos, platos, _ = controller_platos.obtener_platos_disponibles()
+        
+        if not success_platos or not platos:
+            DialogUtils.mostrar_error("Error", "No hay platos disponibles")
+            return
+        
+        # Crear dialog
+        dialog = ctk.CTkToplevel()
+        dialog.title(f"Nuevo Pedido - Mesa {mesa.numero}")
+        dialog.geometry("900x550")
+        dialog.resizable(True, True)
+        dialog.attributes('-topmost', True)  # Mantener en el frente
+        dialog.grab_set()  # Hacerla modal
+        
+        # === HEADER ===
+        frame_header = ctk.CTkFrame(dialog, fg_color=config.COLORS["primary"], height=60)
+        frame_header.pack(side="top", fill="x", padx=0, pady=0)
+        frame_header.pack_propagate(False)
+        
+        titulo = ctk.CTkLabel(
+            frame_header,
+            text=f"Nuevo Pedido - Mesa {mesa.numero}",
+            text_color="white",
+            font=("Helvetica", 20, "bold")
+        )
+        titulo.pack(side="left", padx=20, pady=15)
+        
+        # === CONTENIDO PRINCIPAL ===
+        frame_main = ctk.CTkFrame(dialog, fg_color=config.COLORS["light_bg"])
+        frame_main.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # === PANEL IZQUIERDO (Productos) ===
+        frame_left = ctk.CTkFrame(frame_main, fg_color=config.COLORS["light_bg"])
+        frame_left.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        
+        # Selector de mesero
+        label_mesero = ctk.CTkLabel(
+            frame_left,
+            text="👨‍💼 Selecciona un mesero:",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 11, "bold")
+        )
+        label_mesero.pack(anchor="w", pady=(0, 8))
+        
+        mesero_labels = [m.nombre for m in meseros] if success_emp and meseros else ["No hay meseros"]
+        combo_mesero = ctk.CTkComboBox(
+            frame_left,
+            values=mesero_labels,
+            state="readonly",
+            font=("Helvetica", 10)
+        )
+        combo_mesero.pack(fill="x", pady=(0, 15))
+        if mesero_labels and mesero_labels[0] != "No hay meseros":
+            combo_mesero.set(mesero_labels[0])
+        
+        # Variable para la categoría activa
+        categoria_activa = ctk.StringVar(value="Entrada")
+        
+        # Obtener categorías únicas
+        categorias = list(set([p.categoria.value for p in platos]))
+        categorias.sort()
+        
+        # === TABS DE CATEGORÍAS ===
+        frame_tabs = ctk.CTkFrame(frame_left, fg_color="transparent")
+        frame_tabs.pack(fill="x", pady=(0, 15))
+        
+        # Botones de categorías
+        for cat in categorias:
+            btn = ctk.CTkButton(
+                frame_tabs,
+                text=cat,
+                command=lambda c=cat: self._cambiar_categoria(c, categoria_activa, frame_productos, platos, carrito_items),
+                fg_color=config.COLORS["primary"],
+                hover_color="#D64B1E",
+                text_color="white",
+                font=("Helvetica", 10),
+                height=32
+            )
+            btn.pack(side="left", padx=3, fill="x", expand=True)
+        
+        # === GRID DE PRODUCTOS ===
+        frame_productos = ctk.CTkFrame(frame_left, fg_color="transparent")
+        frame_productos.pack(fill="both", expand=True)
+        
+        # Carrito (diccionario para almacenar items)
+        carrito_items = {}
+        
+        # Mostrar productos de la categoría inicial
+        self._mostrar_productos_categoria("Entrada", frame_productos, platos, carrito_items)
+        
+        # === PANEL DERECHO (Carrito) ===
+        frame_right = ctk.CTkFrame(frame_main, fg_color="#F9FAFB", width=300)
+        frame_right.pack(side="right", fill="both", padx=10, pady=10)
+        frame_right.pack_propagate(False)
+        
+        # Header del carrito
+        frame_carrito_header = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_carrito_header.pack(fill="x", pady=(0, 15), side="top")
+        
+        label_carrito_titulo = ctk.CTkLabel(
+            frame_carrito_header,
+            text="🛒 Pedido",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 14, "bold")
+        )
+        label_carrito_titulo.pack(anchor="w")
+        
+        # Frame contenedor para canvas y scrollbar
+        frame_canvas_wrapper = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_canvas_wrapper.pack(fill="both", expand=True, side="top")
+        
+        # Frame scrollable para items del carrito
+        self.canvas_carrito = ctk.CTkCanvas(
+            frame_canvas_wrapper,
+            bg="#F9FAFB",
+            highlightthickness=0
+        )
+        scrollbar_carrito = ctk.CTkScrollbar(frame_canvas_wrapper, command=self.canvas_carrito.yview)
+        self.frame_carrito_items = ctk.CTkFrame(
+            self.canvas_carrito,
+            fg_color="#F9FAFB"
+        )
+        
+        self.frame_carrito_items.bind(
+            "<Configure>",
+            lambda e: self.canvas_carrito.configure(scrollregion=self.canvas_carrito.bbox("all"))
+        )
+        
+        self.canvas_carrito.create_window((0, 0), window=self.frame_carrito_items, anchor="nw")
+        self.canvas_carrito.configure(yscrollcommand=scrollbar_carrito.set)
+        
+        self.canvas_carrito.pack(side="left", fill="both", expand=True)
+        scrollbar_carrito.pack(side="right", fill="y")
+        
+        # Footer del carrito
+        frame_carrito_footer = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_carrito_footer.pack(fill="x", padx=0, pady=(15, 0), side="bottom")
+        
+        # Total
+        frame_total = ctk.CTkFrame(frame_carrito_footer, fg_color="transparent")
+        frame_total.pack(fill="x", pady=(15, 15), padx=0)
+        
+        # Línea separadora
+        separador = ctk.CTkFrame(frame_carrito_footer, fg_color=config.COLORS["border"], height=1)
+        separador.pack(fill="x", pady=(0, 12))
+        
+        label_total_texto = ctk.CTkLabel(
+            frame_total,
+            text="Total:",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 12, "bold")
+        )
+        label_total_texto.pack(side="left")
+        
+        label_total_monto = ctk.CTkLabel(
+            frame_total,
+            text="$0.00",
+            text_color=config.COLORS["primary"],
+            font=("Helvetica", 16, "bold")
+        )
+        label_total_monto.pack(side="right")
+        
+        # Botones
+        frame_acciones = ctk.CTkFrame(frame_carrito_footer, fg_color="transparent")
+        frame_acciones.pack(fill="x", padx=0, pady=0)
+        
+        def crear_pedido_final():
+            self._procesar_nuevo_pedido(mesa, combo_mesero, carrito_items, meseros, dialog, label_total_monto)
+        
+        btn_crear = ctk.CTkButton(
+            frame_acciones,
+            text="✅ Crear Pedido",
+            command=crear_pedido_final,
+            fg_color=config.COLORS["success"],
+            hover_color="#0E9F6E",
+            text_color="white",
+            font=("Helvetica", 12, "bold"),
+            height=40
+        )
+        btn_crear.pack(fill="x", pady=(0, 8))
+        
+        btn_cancelar = ctk.CTkButton(
+            frame_acciones,
+            text="❌ Cancelar",
+            command=dialog.destroy,
+            fg_color="#6B7280",
+            hover_color="#4B5563",
+            text_color="white",
+            font=("Helvetica", 12, "bold"),
+            height=40
+        )
+        btn_cancelar.pack(fill="x")
+        
+        # Almacenar referencias para actualizaciones
+        self.carrito_actual = carrito_items
+        self.label_total_actual = label_total_monto
+        self.frame_carrito_actual = self.frame_carrito_items
+        self.canvas_carrito_actual = self.canvas_carrito
+        self.frame_productos_actual = frame_productos
+    
+    def _cambiar_categoria(self, categoria, categoria_var, frame_productos, platos, carrito_items):
+        """Cambiar categoría de productos"""
+        for widget in frame_productos.winfo_children():
+            widget.destroy()
+        
+        self._mostrar_productos_categoria(categoria, frame_productos, platos, carrito_items)
+    
+    def _mostrar_productos_categoria(self, categoria, frame_productos, platos, carrito_items):
+        """Mostrar grid de productos de una categoría"""
+        # Limpiar frame anterior
+        for widget in frame_productos.winfo_children():
+            widget.destroy()
+        
+        # Filtrar platos por categoría
+        platos_categoria = [p for p in platos if p.categoria.value == categoria]
+        
+        if not platos_categoria:
+            label_vacio = ctk.CTkLabel(
+                frame_productos,
+                text=f"No hay platos en {categoria}",
+                text_color=config.COLORS["text_dark"],
+                font=("Helvetica", 12)
+            )
+            label_vacio.pack(pady=40)
+            return
+        
+        # Canvas para scroll
+        canvas = ctk.CTkCanvas(
+            frame_productos,
+            bg=config.COLORS["light_bg"],
+            highlightthickness=0
+        )
+        scrollbar = ctk.CTkScrollbar(frame_productos, command=canvas.yview)
+        scrollable_frame = ctk.CTkFrame(
+            canvas,
+            fg_color=config.COLORS["light_bg"]
+        )
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Agrupar platos de 2 en 2
+        for idx in range(0, len(platos_categoria), 2):
+            # Row frame para 2 columnas
+            row_frame = ctk.CTkFrame(scrollable_frame, fg_color="transparent")
+            row_frame.pack(fill="x", padx=4, pady=4)
+            
+            # Primera columna
+            plato_izq = platos_categoria[idx]
+            self._crear_card_plato(row_frame, plato_izq, carrito_items)
+            
+            # Segunda columna (si existe)
+            if idx + 1 < len(platos_categoria):
+                plato_der = platos_categoria[idx + 1]
+                self._crear_card_plato(row_frame, plato_der, carrito_items)
+    
+    def _crear_card_plato(self, parent, plato, carrito_items):
+        """Crear un card interactivo para un plato"""
+        # Card del producto como frame
+        card_frame = ctk.CTkFrame(
+            parent,
+            fg_color="white",
+            border_width=1,
+            border_color=config.COLORS["border"],
+            corner_radius=8
+        )
+        card_frame.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+        
+        # Función del click
+        def on_click(event=None):
+            self._agregar_al_carrito(plato, carrito_items)
+        
+        # Funciones para hover effect
+        def on_enter(event=None):
+            card_frame.configure(fg_color="#F3F4F6")
+            card_frame.configure(border_color=config.COLORS["primary"])
+            card_frame.configure(border_width=2)
+        
+        def on_leave(event=None):
+            card_frame.configure(fg_color="white")
+            card_frame.configure(border_color=config.COLORS["border"])
+            card_frame.configure(border_width=1)
+        
+        # Bindear eventos de clic en el frame
+        card_frame.bind("<Button-1>", on_click)
+        card_frame.bind("<Enter>", on_enter)
+        card_frame.bind("<Leave>", on_leave)
+        
+        # Content dentro del frame
+        content = ctk.CTkFrame(card_frame, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=12, pady=12)
+        
+        # Bindear también en el content para que funcione el click
+        content.bind("<Button-1>", on_click)
+        content.bind("<Enter>", on_enter)
+        content.bind("<Leave>", on_leave)
+        
+        # Nombre
+        name_label = ctk.CTkLabel(
+            content,
+            text=plato.nombre,
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 11, "bold"),
+            wraplength=140
+        )
+        name_label.pack(anchor="w", pady=(0, 8))
+        name_label.bind("<Button-1>", on_click)
+        name_label.bind("<Enter>", on_enter)
+        name_label.bind("<Leave>", on_leave)
+        
+        # Precio
+        price_label = ctk.CTkLabel(
+            content,
+            text=f"${plato.precio:.2f}",
+            text_color=config.COLORS["primary"],
+            font=("Helvetica", 13, "bold")
+        )
+        price_label.pack(anchor="w")
+        price_label.bind("<Button-1>", on_click)
+        price_label.bind("<Enter>", on_enter)
+        price_label.bind("<Leave>", on_leave)
+    
+    def _agregar_al_carrito(self, plato, carrito_items):
+        """Agregar plato al carrito"""
+        if plato.id in carrito_items:
+            carrito_items[plato.id]['cantidad'] += 1
+        else:
+            carrito_items[plato.id] = {
+                'plato': plato,
+                'cantidad': 1
+            }
+        
+        self._actualizar_carrito_visual(carrito_items)
+    
+    def _actualizar_carrito_visual(self, carrito_items):
+        """Actualizar visualización del carrito"""
+        # Limpiar carrito anterior
+        for widget in self.frame_carrito_actual.winfo_children():
+            widget.destroy()
+        
+        if not carrito_items:
+            label_vacio = ctk.CTkLabel(
+                self.frame_carrito_actual,
+                text="Carrito vacío",
+                text_color="#9CA3AF",
+                font=("Helvetica", 11)
+            )
+            label_vacio.pack(pady=40)
+            self.label_total_actual.configure(text="$0.00")
+            return
+        
+        # Mostrar items
+        total = 0
+        for plato_id, item in carrito_items.items():
+            plato = item['plato']
+            cantidad = item['cantidad']
+            subtotal = plato.precio * cantidad
+            total += subtotal
+            
+            # Card del item
+            item_card = ctk.CTkFrame(
+                self.frame_carrito_actual,
+                fg_color="white",
+                border_width=1,
+                border_color=config.COLORS["border"],
+                corner_radius=6
+            )
+            item_card.pack(fill="x", pady=6, padx=0)
+            
+            # Content del item
+            content = ctk.CTkFrame(item_card, fg_color="transparent")
+            content.pack(fill="both", expand=True, padx=10, pady=8)
+            
+            # Nombre y precio unitario
+            header = ctk.CTkFrame(content, fg_color="transparent")
+            header.pack(fill="x", pady=(0, 6))
+            
+            name_label = ctk.CTkLabel(
+                header,
+                text=plato.nombre,
+                text_color=config.COLORS["text_dark"],
+                font=("Helvetica", 10, "bold"),
+                wraplength=200
+            )
+            name_label.pack(anchor="w", side="left")
+            
+            price_label = ctk.CTkLabel(
+                header,
+                text=f"${plato.precio:.2f}",
+                text_color="#6B7280",
+                font=("Helvetica", 9)
+            )
+            price_label.pack(anchor="e", side="right")
+            
+            # Controles cantidad y delete
+            footer = ctk.CTkFrame(content, fg_color="transparent")
+            footer.pack(fill="x")
+            
+            # Botones cantidad
+            btn_frame = ctk.CTkFrame(footer, fg_color="transparent")
+            btn_frame.pack(side="left")
+            
+            btn_minus = ctk.CTkButton(
+                btn_frame,
+                text="−",
+                command=lambda pid=plato_id: self._cambiar_cantidad(pid, -1, carrito_items),
+                width=25,
+                height=25,
+                fg_color="#E5E7EB",
+                text_color=config.COLORS["text_dark"],
+                font=("Helvetica", 12, "bold")
+            )
+            btn_minus.pack(side="left", padx=2)
+            
+            qty_label = ctk.CTkLabel(
+                btn_frame,
+                text=str(cantidad),
+                text_color=config.COLORS["text_dark"],
+                font=("Helsinki", 10, "bold"),
+                width=30
+            )
+            qty_label.pack(side="left", padx=3)
+            
+            btn_plus = ctk.CTkButton(
+                btn_frame,
+                text="+",
+                command=lambda pid=plato_id: self._cambiar_cantidad(pid, 1, carrito_items),
+                width=25,
+                height=25,
+                fg_color="#E5E7EB",
+                text_color=config.COLORS["text_dark"],
+                font=("Helvetica", 12, "bold")
+            )
+            btn_plus.pack(side="left", padx=2)
+            
+            # Botón delete
+            btn_delete = ctk.CTkButton(
+                footer,
+                text="🗑️",
+                command=lambda pid=plato_id: self._eliminar_del_carrito(pid, carrito_items),
+                width=30,
+                height=25,
+                fg_color="#FEE2E2",
+                text_color="#EF4444",
+                font=("Helvetica", 10)
+            )
+            btn_delete.pack(side="right")
+            
+            # Subtotal
+            subtotal_label = ctk.CTkLabel(
+                footer,
+                text=f"${subtotal:.2f}",
+                text_color=config.COLORS["primary"],
+                font=("Helvetica", 10, "bold")
+            )
+            subtotal_label.pack(side="right", padx=10)
+        
+        # Actualizar total
+        self.label_total_actual.configure(text=f"${total:.2f}")
+    
+    def _cambiar_cantidad(self, plato_id, delta, carrito_items):
+        """Cambiar cantidad de un item"""
+        if plato_id not in carrito_items:
+            return
+        
+        carrito_items[plato_id]['cantidad'] += delta
+        
+        if carrito_items[plato_id]['cantidad'] <= 0:
+            del carrito_items[plato_id]
+        
+        self._actualizar_carrito_visual(carrito_items)
+    
+    def _eliminar_del_carrito(self, plato_id, carrito_items):
+        """Eliminar item del carrito"""
+        if plato_id in carrito_items:
+            del carrito_items[plato_id]
+        
+        self._actualizar_carrito_visual(carrito_items)
+    
+    def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
+        """Procesar y crear el nuevo pedido"""
+        from controllers.pedidos_controller import PedidosController
+        from controllers.clientes_controller import ClientesController
+        
+        # Validaciones
+        if not combo_mesero.get() or combo_mesero.get() == "No hay meseros":
+            DialogUtils.mostrar_error("Error", "Selecciona un mesero")
+            return
+        
+        if not carrito_items:
+            DialogUtils.mostrar_error("Error", "Agrega al menos un plato al pedido")
+            return
+        
+        # Obtener ID del mesero seleccionado
+        mesero_name = combo_mesero.get()
+        mesero = next((m for m in meseros if m.nombre == mesero_name), None)
+        if not mesero:
+            DialogUtils.mostrar_error("Error", "Mesero no válido")
+            return
+        
+        try:
+            # Crear cliente primero
+            controller_clientes = ClientesController()
+            success, cliente, msg = controller_clientes.crear_cliente(
+                nombre=f"Mesa {mesa.numero}",
+                mesa_id=mesa.id
+            )
+            
+            if not success:
+                DialogUtils.mostrar_error("Error", f"Error al crear cliente: {msg}")
+                return
+            
+            # Crear pedido
+            controller_pedidos = PedidosController()
+            success, pedido, msg = controller_pedidos.crear_pedido(
+                cliente_id=cliente.id,
+                mesa_id=mesa.id,
+                empleado_id=mesero.id
+            )
+            
+            if not success:
+                DialogUtils.mostrar_error("Error", f"Error al crear pedido: {msg}")
+                return
+            
+            # Agregar items al pedido
+            for plato_id, item in carrito_items.items():
+                success, _, msg = controller_pedidos.agregar_plato_pedido(
+                    pedido.id,
+                    plato_id,
+                    item['cantidad']
+                )
+                
+                if not success:
+                    DialogUtils.mostrar_error("Error", f"Error al agregar plato: {msg}")
+                    return
+            
+            # Actualizar estado de mesa a OCUPADA
+            success, _, msg = self.controller.cambiar_estado_mesa(mesa.id, "ocupada")
+            
+            if not success:
+                DialogUtils.mostrar_error("Error", f"Error al actualizar mesa: {msg}")
+                return
+            
+            DialogUtils.mostrar_exito("Éxito", "Pedido creado correctamente")
+            dialog.destroy()
+            self.refrescar_tabla()
+        
+        except Exception as e:
+            print(f"ERROR DETALLADO: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            DialogUtils.mostrar_error("Error", f"Error: {str(e)}")
+    
+    
+    def crear_mesa(self):
+        """Crear nueva mesa"""
+        dialog = ctk.CTkToplevel()
+        dialog.title("Nueva Mesa")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        dialog.attributes('-topmost', True)  # Mantener en el frente
+        dialog.grab_set()  # Hacerla modal
+        
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Número de mesa
+        ctk.CTkLabel(frame, text="Número de Mesa:", text_color=config.COLORS["text_dark"], font=("Helvetica", 11, "bold")).pack(anchor="w", pady=(0, 5))
+        entry_numero = ctk.CTkEntry(frame, placeholder_text="Ej: 1, 2, 3...")
+        entry_numero.pack(fill="x", pady=(0, 15))
+        
+        # Capacidad
+        ctk.CTkLabel(frame, text="Capacidad:", text_color=config.COLORS["text_dark"], font=("Helvetica", 11, "bold")).pack(anchor="w", pady=(0, 5))
+        entry_capacidad = ctk.CTkEntry(frame, placeholder_text="Ej: 2, 4, 6...")
+        entry_capacidad.pack(fill="x", pady=(0, 15))
+        
+        # Botones
+        frame_botones = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_botones.pack(fill="x", pady=10)
+        
+        def guardar():
+            try:
+                numero = int(entry_numero.get())
+                capacidad = int(entry_capacidad.get())
+                success, _, msg = self.controller.crear_mesa(numero, capacidad)
+                if success:
+                    DialogUtils.mostrar_exito("Éxito", "Mesa creada correctamente")
+                    dialog.destroy()
+                    self.refrescar_tabla()
+                else:
+                    DialogUtils.mostrar_error("Error", msg)
+            except ValueError:
+                DialogUtils.mostrar_error("Error", "Introduce números válidos")
+        
+        btn_guardar = ctk.CTkButton(
+            frame_botones,
+            text="✅ Guardar",
+            command=guardar,
+            fg_color=config.COLORS["success"],
+            hover_color="#0E9F6E",
+            text_color="white"
+        )
+        btn_guardar.pack(side="left", padx=5, expand=True, fill="x")
+        
+        btn_cancelar = ctk.CTkButton(
+            frame_botones,
+            text="❌ Cancelar",
+            command=dialog.destroy,
+            fg_color="#6B7280",
+            hover_color="#4B5563",
+            text_color="white"
+        )
+        btn_cancelar.pack(side="left", padx=5, expand=True, fill="x")
+    
+    def _agregar_platos_pedido_existente(self, mesa):
+        """Agregar platos a un pedido existente"""
+        from controllers.pedidos_controller import PedidosController
+        from controllers.platos_controller import PlatosController
+        
+        controller_pedidos = PedidosController()
+        
+        # Obtener el pedido activo de la mesa
+        success, pedido, msg = controller_pedidos.obtener_pedido_activo_mesa(mesa.id)
+        
+        if not success or not pedido:
+            DialogUtils.mostrar_error("Error", "No hay un pedido activo en esta mesa")
+            return
+        
+        # Cargar platos
+        controller_platos = PlatosController()
+        success_platos, platos, _ = controller_platos.obtener_platos_disponibles()
+        
+        if not success_platos or not platos:
+            DialogUtils.mostrar_error("Error", "No hay platos disponibles")
+            return
+        
+        # Crear dialog
+        dialog = ctk.CTkToplevel()
+        dialog.title(f"Agregar Platos - Mesa {mesa.numero}")
+        dialog.geometry("900x550")
+        dialog.resizable(True, True)
+        dialog.attributes('-topmost', True)  # Mantener en el frente
+        dialog.grab_set()  # Hacerla modal
+        
+        # === HEADER ===
+        frame_header = ctk.CTkFrame(dialog, fg_color=config.COLORS["primary"], height=60)
+        frame_header.pack(side="top", fill="x", padx=0, pady=0)
+        frame_header.pack_propagate(False)
+        
+        titulo = ctk.CTkLabel(
+            frame_header,
+            text=f"Agregar Platos - Mesa {mesa.numero}",
+            text_color="white",
+            font=("Helvetica", 20, "bold")
+        )
+        titulo.pack(side="left", padx=20, pady=15)
+        
+        # === CONTENIDO PRINCIPAL ===
+        frame_main = ctk.CTkFrame(dialog, fg_color=config.COLORS["light_bg"])
+        frame_main.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # === PANEL IZQUIERDO (Productos) ===
+        frame_left = ctk.CTkFrame(frame_main, fg_color=config.COLORS["light_bg"])
+        frame_left.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        
+        # Obtener categorías
+        categoria_activa = ctk.StringVar(value="Entrada")
+        categorias = list(set([p.categoria.value for p in platos]))
+        categorias.sort()
+        
+        # === TABS DE CATEGORÍAS ===
+        frame_tabs = ctk.CTkFrame(frame_left, fg_color="transparent")
+        frame_tabs.pack(fill="x", pady=(0, 15))
+        
+        # Carrito para esta operación
+        carrito_items = {}
+        
+        # Botones de categorías
+        for cat in categorias:
+            btn = ctk.CTkButton(
+                frame_tabs,
+                text=cat,
+                command=lambda c=cat: self._cambiar_categoria(c, categoria_activa, frame_productos, platos, carrito_items),
+                fg_color=config.COLORS["primary"],
+                hover_color="#D64B1E",
+                text_color="white",
+                font=("Helvetica", 10),
+                height=32
+            )
+            btn.pack(side="left", padx=3, fill="x", expand=True)
+        
+        # === GRID DE PRODUCTOS ===
+        frame_productos = ctk.CTkFrame(frame_left, fg_color="transparent")
+        frame_productos.pack(fill="both", expand=True)
+        
+        # Mostrar productos de la categoría inicial
+        self._mostrar_productos_categoria("Entrada", frame_productos, platos, carrito_items)
+        
+        # === PANEL DERECHO (Carrito) ===
+        frame_right = ctk.CTkFrame(frame_main, fg_color="#F9FAFB", width=300)
+        frame_right.pack(side="right", fill="both", padx=10, pady=10)
+        frame_right.pack_propagate(False)
+        
+        # Header del carrito
+        frame_carrito_header = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_carrito_header.pack(fill="x", pady=(0, 15), side="top")
+        
+        label_carrito_titulo = ctk.CTkLabel(
+            frame_carrito_header,
+            text="🛒 Agregar",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 14, "bold")
+        )
+        label_carrito_titulo.pack(anchor="w")
+        
+        # Frame contenedor para canvas y scrollbar
+        frame_canvas_wrapper = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_canvas_wrapper.pack(fill="both", expand=True, side="top")
+        
+        # Frame scrollable para items del carrito
+        self.canvas_carrito = ctk.CTkCanvas(
+            frame_canvas_wrapper,
+            bg="#F9FAFB",
+            highlightthickness=0
+        )
+        scrollbar_carrito = ctk.CTkScrollbar(frame_canvas_wrapper, command=self.canvas_carrito.yview)
+        self.frame_carrito_items = ctk.CTkFrame(
+            self.canvas_carrito,
+            fg_color="#F9FAFB"
+        )
+        
+        self.frame_carrito_items.bind(
+            "<Configure>",
+            lambda e: self.canvas_carrito.configure(scrollregion=self.canvas_carrito.bbox("all"))
+        )
+        
+        self.canvas_carrito.create_window((0, 0), window=self.frame_carrito_items, anchor="nw")
+        self.canvas_carrito.configure(yscrollcommand=scrollbar_carrito.set)
+        
+        self.canvas_carrito.pack(side="left", fill="both", expand=True)
+        scrollbar_carrito.pack(side="right", fill="y")
+        
+        # Footer del carrito
+        frame_carrito_footer = ctk.CTkFrame(frame_right, fg_color="transparent")
+        frame_carrito_footer.pack(fill="x", padx=0, pady=(15, 0), side="bottom")
+        
+        # Total
+        frame_total = ctk.CTkFrame(frame_carrito_footer, fg_color="transparent")
+        frame_total.pack(fill="x", pady=(15, 15), padx=0)
+        
+        # Línea separadora
+        separador = ctk.CTkFrame(frame_carrito_footer, fg_color=config.COLORS["border"], height=1)
+        separador.pack(fill="x", pady=(0, 12))
+        
+        label_total_texto = ctk.CTkLabel(
+            frame_total,
+            text="Total:",
+            text_color=config.COLORS["text_dark"],
+            font=("Helvetica", 12, "bold")
+        )
+        label_total_texto.pack(side="left")
+        
+        label_total_monto = ctk.CTkLabel(
+            frame_total,
+            text="$0.00",
+            text_color=config.COLORS["primary"],
+            font=("Helvetica", 16, "bold")
+        )
+        label_total_monto.pack(side="right")
+        
+        # Botones
+        frame_acciones = ctk.CTkFrame(frame_carrito_footer, fg_color="transparent")
+        frame_acciones.pack(fill="x", padx=0, pady=0)
+        
+        def agregar_platos_final():
+            self._procesar_agregar_platos(pedido, carrito_items, dialog, label_total_monto)
+        
+        btn_agregar = ctk.CTkButton(
+            frame_acciones,
+            text="✅ Agregar Platos",
+            command=agregar_platos_final,
+            fg_color=config.COLORS["success"],
+            hover_color="#0E9F6E",
+            text_color="white",
+            font=("Helvetica", 12, "bold"),
+            height=40
+        )
+        btn_agregar.pack(fill="x", pady=(0, 8))
+        
+        btn_cancelar = ctk.CTkButton(
+            frame_acciones,
+            text="❌ Cancelar",
+            command=dialog.destroy,
+            fg_color="#6B7280",
+            hover_color="#4B5563",
+            text_color="white",
+            font=("Helvetica", 12, "bold"),
+            height=40
+        )
+        btn_cancelar.pack(fill="x")
+        
+        # Almacenar referencias
+        self.carrito_actual = carrito_items
+        self.label_total_actual = label_total_monto
+        self.frame_carrito_actual = self.frame_carrito_items
+        self.canvas_carrito_actual = self.canvas_carrito
+        self.frame_productos_actual = frame_productos
+    
+    def _procesar_agregar_platos(self, pedido, carrito_items, dialog, label_total):
+        """Procesar y agregar platos a pedido existente"""
+        from controllers.pedidos_controller import PedidosController
+        
+        # Validación
+        if not carrito_items:
+            DialogUtils.mostrar_error("Error", "Agrega al menos un plato")
+            return
+        
+        try:
+            controller_pedidos = PedidosController()
+            
+            # Agregar items al pedido existente
+            for plato_id, item in carrito_items.items():
+                success, _, msg = controller_pedidos.agregar_plato_pedido(
+                    pedido.id,
+                    plato_id,
+                    item['cantidad']
+                )
+                
+                if not success:
+                    DialogUtils.mostrar_error("Error", f"Error al agregar plato: {msg}")
+                    return
+            
+            DialogUtils.mostrar_exito("Éxito", "Platos agregados correctamente")
+            dialog.destroy()
+            self.refrescar_tabla()
+        
+        except Exception as e:
+            print(f"ERROR DETALLADO: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            DialogUtils.mostrar_error("Error", f"Error: {str(e)}")

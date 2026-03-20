@@ -3,3 +3,9 @@
 /controllers/__pycache__
 /models/__pycache__
 /views/__pycache__
+/database/__pycache__
+/venv/Lib/site-packages/_distutils_hack/__pycache__
+/venv
+/views/pages/__pycache__
+/views/components/__pycache__
+/utils/__pycache__
