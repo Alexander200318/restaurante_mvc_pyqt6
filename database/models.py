@@ -42,19 +42,22 @@ class Cliente(Base):
     __tablename__ = "clientes"
     
     id = Column(Integer, primary_key=True, index=True)
+    cedula = Column(String(20), unique=True, nullable=False, index=True)
     nombre = Column(String(100), nullable=False)
-    mesa_id = Column(Integer, ForeignKey('mesas.id'), nullable=False)
+    apellido = Column(String(100), nullable=False)
+    correo = Column(String(100), nullable=True)
+    telefono = Column(String(20), nullable=True)
+    direccion = Column(String(255), nullable=True)
+    mesa_id = Column(Integer, ForeignKey('mesas.id'), nullable=True)
     estado = Column(SQLEnum(config.ClienteEstado), default=config.ClienteEstado.COMIENDO)
     fecha_llegada = Column(DateTime, default=datetime.now)
-    telefono = Column(String(20), nullable=True)
-    cantidad_personas = Column(Integer, default=1)
     
     # Relaciones
     mesa = relationship("Mesa", back_populates="clientes")
     pedidos = relationship("Pedido", back_populates="cliente")
     
     def __repr__(self):
-        return f"<Cliente {self.nombre} en Mesa {self.mesa_id}>"
+        return f"<Cliente {self.nombre} {self.apellido}>"
 
 class Empleado(Base):
     """Modelo de Empleado"""

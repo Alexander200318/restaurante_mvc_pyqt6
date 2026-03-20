@@ -12,14 +12,16 @@ class ClientesController(BaseController):
         self.model = ClientesModel()
     
     # Crear
-    def crear_cliente(self, nombre: str, mesa_id: int, cantidad_personas: int = 1, telefono: str = None):
+    def crear_cliente(self, cedula: str, nombre: str, apellido: str, 
+                     telefono: str = None, direccion: str = None, correo: str = None):
         """Crear nuevo cliente"""
-        return self.model.crear_cliente(nombre, mesa_id, cantidad_personas, telefono)
+        return self.model.crear_cliente(cedula, nombre, apellido, telefono, direccion, correo)
     
     # Actualizar
-    def actualizar_cliente(self, cliente_id: int, nombre: str = None, cantidad_personas: int = None, telefono: str = None):
+    def actualizar_cliente(self, cliente_id: int, nombre: str = None, apellido: str = None,
+                          telefono: str = None, direccion: str = None, correo: str = None, mesa_id: int = None):
         """Actualizar cliente"""
-        return self.model.actualizar_cliente(cliente_id, nombre, cantidad_personas, telefono)
+        return self.model.actualizar_cliente(cliente_id, nombre, apellido, telefono, direccion, correo, mesa_id)
     
     def cambiar_estado_cliente(self, cliente_id: int, nuevo_estado: str):
         """Cambiar estado"""
@@ -33,6 +35,10 @@ class ClientesController(BaseController):
     def obtener_cliente(self, cliente_id: int):
         """Obtener cliente por ID"""
         return self.model.obtener_cliente(cliente_id)
+    
+    def obtener_todos_clientes(self):
+        """Obtener todos los clientes sin formatear"""
+        return self.model.obtener_todos_clientes()
     
     def obtener_todos_clientes_formateados(self):
         """Obtener todos los clientes formateados para tabla"""
