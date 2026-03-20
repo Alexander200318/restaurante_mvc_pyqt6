@@ -221,3 +221,24 @@ class PlatosModel(BaseModel):
             return None
         
         return self._ejecutar_con_manejo_errores(_eliminar)
+    
+    def obtener_todos_platos_con_conteo(self) -> Tuple[bool, List[tuple], str]:
+        """Obtener todos los platos con conteo de ingredientes en una sola sesión"""
+        def _obtener(session):
+            platos = session.query(Plato).order_by(Plato.nombre).all()
+            datos = []
+            for plato in platos:
+                # Contar ingredientes dentro de la sesión para evitar problemas con lazy loading
+                num_ingredientes = len(plato.ingredientes) if plato.ingredientes else 0
+                datos.append((
+                    plato.id,
+                    plato.nombre,
+                    plato.precio,
+                    plato.categoria,
+                    plato.tiempo_preparacion,
+                    plato.estado,
+                    num_ingredientes
+                ))
+            return datos
+        
+        return self._obtener_con_manejo_errores(_obtener)

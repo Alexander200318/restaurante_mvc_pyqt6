@@ -9,7 +9,16 @@ from typing import List, Tuple, Callable, Optional
 class TreeViewWidget(ctk.CTkFrame):
     """Widget tabla/árbol personalizado"""
     
-    def __init__(self, parent, columnas: List[str], altura: int = 15, **kwargs):
+    def __init__(
+        self,
+        parent,
+        columnas: List[str],
+        altura: int = 15,
+        font_size: int = 10,
+        heading_font_size: int = 10,
+        row_height: int = 26,
+        **kwargs
+    ):
         """
         columnas: lista de nombres de columnas ['ID', 'Nombre', 'Precio', ...]
         altura: filas que se ven
@@ -18,15 +27,30 @@ class TreeViewWidget(ctk.CTkFrame):
         
         self.columnas = columnas
         self.altura = altura
+        self.font_size = font_size
+        self.heading_font_size = heading_font_size
+        self.row_height = row_height
         self.arbol = None
         self.items_datos = {}  # Mapeo de ID de fila a datos
         self.on_seleccionar = None
         self.on_doble_click = None
+        self.style_name = f"Custom{id(self)}.Treeview"
         
         self._crear_treeview()
     
     def _crear_treeview(self):
         """Crear el widget treeview"""
+        style = ttk.Style(self)
+        style.configure(
+            self.style_name,
+            font=("Segoe UI", self.font_size),
+            rowheight=self.row_height
+        )
+        style.configure(
+            f"{self.style_name}.Heading",
+            font=("Segoe UI", self.heading_font_size, "bold")
+        )
+
         # Frame con scrollbar
         frame_tabla = ctk.CTkFrame(self, fg_color="transparent")
         frame_tabla.pack(fill="both", expand=True, padx=0, pady=0)
@@ -40,6 +64,7 @@ class TreeViewWidget(ctk.CTkFrame):
             frame_tabla,
             columns=self.columnas,
             height=self.altura,
+            style=self.style_name,
             yscrollcommand=vsb.set,
             xscrollcommand=hsb.set,
             show='headings'
@@ -145,6 +170,10 @@ class TreeViewWidget(ctk.CTkFrame):
     def set_on_select(self, callback: Callable):
         """Establecer callback para selección"""
         self.on_seleccionar = callback
+    
+    def set_on_doble_click(self, callback: Callable):
+        """Establecer callback para doble click"""
+        self.on_doble_click = callback
     
     def set_on_double_click(self, callback: Callable):
         """Establecer callback para doble click"""

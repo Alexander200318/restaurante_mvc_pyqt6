@@ -63,22 +63,22 @@ class PlatosController(BaseController):
     
     def obtener_todos_platos_formateados(self):
         """Obtener todos formateados"""
-        success, platos, msg = self.model.obtener_todos_platos()
-        if not success or not platos:
+        success, datos, msg = self.model.obtener_todos_platos_con_conteo()
+        if not success or not datos:
             return success, [], msg
         
-        datos = []
-        for plato in platos:
-            datos.append((
-                plato.id,
-                plato.nombre,
-                f"${plato.precio:.2f}",
-                plato.categoria.value,
-                plato.tiempo_preparacion,
-                plato.estado.value,
-                len(plato.ingredientes)
+        datos_formateados = []
+        for plato in datos:
+            datos_formateados.append((
+                plato[0],  # ID
+                plato[1],  # nombre
+                f"${plato[2]:.2f}",  # precio
+                plato[3].value,  # categoria
+                plato[4],  # tiempo_preparacion
+                plato[5].value,  # estado
+                plato[6]  # num_ingredientes
             ))
-        return True, datos, msg
+        return True, datos_formateados, msg
     
     def obtener_platos_disponibles_formateados(self):
         """Obtener platos disponibles"""

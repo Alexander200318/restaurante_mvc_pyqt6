@@ -106,15 +106,91 @@ class ReportesPage(ctk.CTkFrame):
         """Tab de ventas"""
         frame = ctk.CTkScrollableFrame(parent)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        ctk.CTkLabel(frame, text="Platos Más Vendidos:", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10))
-        
-        self.label_platos = ctk.CTkLabel(
+
+        ctk.CTkLabel(frame, text="Platos Más Vendidos", font=("Arial", 13, "bold")).pack(anchor="w", pady=(2, 4))
+
+        self.label_platos_resumen = ctk.CTkLabel(
             frame,
-            text="Cargando...",
-            justify="left"
+            text="Top 5 de la semana",
+            font=("Arial", 10),
+            text_color=config.COLORS["secondary"]
         )
-        self.label_platos.pack(anchor="w", padx=20, pady=10)
+        self.label_platos_resumen.pack(anchor="w", padx=4, pady=(0, 6))
+
+        self.lista_platos_card = ctk.CTkFrame(
+            frame,
+            fg_color=config.COLORS["dark_bg"],
+            border_width=1,
+            border_color=config.COLORS["border"],
+            corner_radius=8
+        )
+        self.lista_platos_card.pack(fill="x", expand=False, pady=(0, 6))
+
+        self.lista_platos_frame = ctk.CTkFrame(self.lista_platos_card, fg_color="transparent")
+        self.lista_platos_frame.pack(fill="x", padx=8, pady=8)
+
+    def _nombre_corto(self, nombre: str, max_len: int = 22) -> str:
+        """Acortar nombre para reportes compactos."""
+        if len(nombre) <= max_len:
+            return nombre
+        return nombre[:max_len - 1] + "…"
+
+    def _actualizar_lista_platos(self, platos: list):
+        """Actualizar lista compacta de platos más vendidos."""
+        for widget in self.lista_platos_frame.winfo_children():
+            widget.destroy()
+
+        if not platos:
+            ctk.CTkLabel(
+                self.lista_platos_frame,
+                text="Sin ventas registradas",
+                font=("Arial", 10),
+                text_color=config.COLORS["secondary"]
+            ).pack(anchor="w", padx=4, pady=4)
+            return
+
+        for i, p in enumerate(platos, start=1):
+            nombre = self._nombre_corto(str(p[0]), 24)
+            vendidos = int(p[1])
+            total = float(p[2])
+
+            fila = ctk.CTkFrame(
+                self.lista_platos_frame,
+                fg_color=config.COLORS["light_bg"],
+                corner_radius=6,
+                border_width=1,
+                border_color=config.COLORS["border"]
+            )
+            fila.pack(fill="x", pady=2)
+
+            ctk.CTkLabel(
+                fila,
+                text=f"{i}",
+                width=24,
+                font=("Arial", 10, "bold"),
+                text_color=config.COLORS["primary"]
+            ).pack(side="left", padx=(8, 4), pady=4)
+
+            ctk.CTkLabel(
+                fila,
+                text=nombre,
+                font=("Arial", 10, "bold"),
+                text_color=config.COLORS["text_dark"]
+            ).pack(side="left", padx=(0, 6), pady=4)
+
+            ctk.CTkLabel(
+                fila,
+                text=f"{vendidos} uds",
+                font=("Arial", 10),
+                text_color=config.COLORS["secondary"]
+            ).pack(side="right", padx=(6, 10), pady=4)
+
+            ctk.CTkLabel(
+                fila,
+                text=f"${total:.2f}",
+                font=("Arial", 10, "bold"),
+                text_color=config.COLORS["success"]
+            ).pack(side="right", padx=(0, 6), pady=4)
     
     def _crear_tab_resumen(self, parent):
         """Tab de resumen general"""
@@ -152,9 +228,17 @@ class ReportesPage(ctk.CTkFrame):
             self.label_categorias.configure(text=texto)
         
         # Platos más vendidos
-        success, platos, msg = self.controller_pedidos.obtener_platos_mas_vendidos(10)
+        success, platos, msg = self.controller_pedidos.obtener_platos_mas_vendidos(4)
         if success:
-            texto = "\n".join([f"  • {p[0]}: {p[1]} vendidos (${p[2]:.2f})" for p in platos])
-            self.label_platos.configure(text=texto)
+            self._actualizar_lista_platos(platos)
+
+            total_unidades = sum(p[1] for p in platos)
+            total_monto = sum(p[2] for p in platos)
+            self.label_platos_resumen.configure(
+                text=f"Top {len(platos)} • {total_unidades} uds • ${total_monto:.2f}"
+            )
+        else:
+            self.label_platos_resumen.configure(text="Sin datos de ventas")
+            self._actualizar_lista_platos([])
         
         DialogUtils.mostrar_exito("Éxito", "Reportes actualizados")
