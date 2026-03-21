@@ -109,20 +109,23 @@ class TreeViewWidget(ctk.CTkFrame):
                 datos = self.items_datos.get(item_id)
                 self.on_doble_click(datos)
     
+
     def agregar_fila(self, datos: Tuple, id_datos=None):
-        """Agregar fila a la tabla"""
-        # Asegurar que datos tiene cantidad correcta de columnas
         datos_formateados = list(datos)[:len(self.columnas)]
         while len(datos_formateados) < len(self.columnas):
             datos_formateados.append("")
-        
+
         item_id = self.arbol.insert('', 'end', values=datos_formateados)
-        
-        if id_datos is not None:
+
+        # 🔧 AQUÍ ESTÁ LA CORRECCIÓN
+        if id_datos is None:
+            self.items_datos[item_id] = datos
+        else:
             self.items_datos[item_id] = id_datos
-        
+
         return item_id
-    
+
+
     def agregar_filas(self, datos_lista: List[Tuple]):
         """Agregar múltiples filas"""
         for datos in datos_lista:

@@ -85,7 +85,7 @@ class IngredientesPage(ctk.CTkFrame):
         self.ingrediente_seleccionado = datos
     
     def refrescar_tablas(self):
-        success, datos, msg = self.controller.obtener_todos_ingredientes_formateados()
+        success, datos, msg = self.controller.obtener_todos_ingredientes()
         if success:
             self.tabla.limpiar()
             self.tabla.agregar_filas(datos)
@@ -125,9 +125,52 @@ class IngredientesPage(ctk.CTkFrame):
         
         FormDialog(self.winfo_toplevel(), "Nuevo Ingrediente", campos, procesar)
     
+    
     def editar_ingrediente(self):
+        print("Seleccionado:", self.ingrediente_seleccionado)
+
         if not self.ingrediente_seleccionado:
-            DialogUtils.mostrar_advertencia("Advertencia", "Selecciona un ingrediente")
+            DialogUtils.mostrar_advertencia(
+                "Advertencia",
+                "Selecciona un ingrediente de la tabla primero"
+            )
             return
-        
-        DialogUtils.mostrar_exito("Funcionalidad", "Edición en progreso")
+
+        ingrediente_id = self.ingrediente_seleccionado[0]
+        print("ID seleccionado:", ingrediente_id)
+
+
+        # Datos actuales de la tabla
+        ingrediente_id = self.ingrediente_seleccionado[0]
+        nombre = self.ingrediente_seleccionado[1]
+        cantidad = self.ingrediente_seleccionado[2]
+        precio = self.ingrediente_seleccionado[3]
+        proveedor = self.ingrediente_seleccionado[4]
+
+        # Limpiar datos formateados
+        precio = str(precio).replace("$", "")
+
+        campos = {
+            'nombre': {'label': 'Nombre', 'type': 'text', 'default': nombre},
+            'precio_unitario': {'label': 'Precio Unitario', 'type': 'number', 'default': precio},
+            'cantidad_minima': {'label': 'Cantidad Mínima', 'type': 'number'},
+            'proveedor': {'label': 'Proveedor', 'type': 'text', 'default': proveedor}
+        }
+
+        def procesar(valores):
+            success, _, msg = self.controller.actualizar_ingrediente(
+                ingrediente_id,
+                valores.get('nombre'),
+                valores.get('precio_unitario'),
+                valores.get('cantidad_minima'),
+                valores.get('proveedor')
+            )
+
+            if success:
+                DialogUtils.mostrar_exito("Éxito", "Ingrediente actualizado")
+                self.refrescar_tablas()
+            else:
+                DialogUtils.mostrar_error("Error", msg)
+
+        FormDialog(self.winfo_toplevel(), "Editar Ingrediente", campos, procesar)
+

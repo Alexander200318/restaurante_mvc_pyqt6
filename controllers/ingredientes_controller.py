@@ -40,25 +40,27 @@ class IngredientesController(BaseController):
         """Obtener ingrediente"""
         return self.model.obtener_ingrediente(ingrediente_id)
     
-    def obtener_todos_ingredientes_formateados(self):
-        """Obtener todos formateados"""
+    
+    def obtener_todos_ingredientes(self):
         success, ingredientes, msg = self.model.obtener_todos_ingredientes()
         if not success or not ingredientes:
             return success, [], msg
-        
+    
         datos = []
         for ing in ingredientes:
             datos.append((
                 ing.id,
                 ing.nombre,
-                f"{ing.cantidad} {ing.unidad}",
-                f"${ing.precio_unitario:.2f}",
-                ing.proveedor or "—",
-                ing.estado.value,
-                "⚠️ BAJO STOCK" if ing.esta_bajo_stock() else "✓"
+                ing.cantidad,
+                ing.unidad,
+                ing.precio_unitario,
+                ing.cantidad_minima,
+                ing.proveedor or "",
+                ing.estado.value
             ))
         return True, datos, msg
     
+
     def obtener_bajo_stock_formateados(self):
         """Obtener ingredientes bajo stock"""
         success, ingredientes, msg = self.model.obtener_ingredientes_bajo_stock()
