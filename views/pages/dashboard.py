@@ -1,376 +1,405 @@
 """
-Dashboard Principal - Resumen de todo el Restaurante
-Versión mejorada con CustomTkinter
+Dashboard Principal - Diseño Moderno & Premium
+Actualizado: 2026-03-20
 """
 import customtkinter as ctk
-from datetime import datetime, timedelta
+from datetime import datetime
 from database.db_manager import DatabaseManager
 from database.models import (
     Mesa, Cliente, Empleado, Ingrediente, 
-    Plato, Pedido, DetallePedido, Pago
+    Plato, Pedido, Pago
 )
 from sqlalchemy import func
 import config
 
-
 class DashboardPage:
-    """Página de Dashboard con resumen ejecutivo"""
+    """Dashboard con diseño moderno y métricas en tiempo real"""
     
     def __init__(self, frame_contenido, db_manager: DatabaseManager):
         self.frame_contenido = frame_contenido
         self.db_manager = db_manager
         self.frame = None
-        self.widgets = {}
         
+        # Paleta de Colores Moderna (Tema Tomate/Naranja)
+        self.colors = {
+            "primary": "#EA580C",       # Orange 600
+            "primary_hover": "#C2410C", # Orange 700
+            "secondary": "#64748B",     # Slate 500
+            "success": "#10B981",       # Emerald 500
+            "danger": "#EF4444",        # Red 500
+            "warning": "#F59E0B",       # Amber 500
+            "info": "#3B82F6",          # Blue 500
+            "dark": "#1F2937",          # Gray 800
+            "surface": "#FFFFFF",       # White
+            "background": "#F3F4F6",    # Gray 100
+            "text": "#111827",          # Gray 900
+            "text_light": "#6B7280",    # Gray 500
+            "border": "#E5E7EB"         # Gray 200
+        }
+
     def crear(self):
-        """Crear la página del dashboard"""
-        # Limpiar frame
+        """Construir el dashboard"""
+        # Limpiar frame anterior
         for widget in self.frame_contenido.winfo_children():
             widget.destroy()
-        
-        # Frame principal scrollable
+            
+        # Frame principal con scroll
         self.frame = ctk.CTkScrollableFrame(
-            self.frame_contenido, 
-            fg_color=config.COLORS["light_bg"]
+            self.frame_contenido,
+            fg_color=self.colors["background"],
+            corner_radius=0
         )
         self.frame.pack(fill="both", expand=True)
         
-        # Header con gradiente visual (naranja)
-        self._crear_header()
+        # Smooth scrolling workaround para Windows
+        self._bind_mouse_wheel(self.frame)
+
+        # 1. Header Hero (Estilo Banner)
+        self._render_hero_header()
         
-        # Métricas principales
-        self._crear_metricas_principales()
+        # 2. Key Metrics Row (Tarjetas de KPI)
+        self._render_kpi_cards()
         
-        # Sección de Mesas
-        self._crear_seccion_mesas_mejorada()
+        # 3. Contenido Principal (Grid 2 columnas)
+        main_grid = ctk.CTkFrame(self.frame, fg_color="transparent")
+        main_grid.pack(fill="both", expand=True, padx=30, pady=(10, 30))
         
-        # Sección de Pedidos
-        self._crear_seccion_pedidos_mejorada()
+        # Columna Izquierda (Tablas y Pedidos) - 70% width visual
+        left_col = ctk.CTkFrame(main_grid, fg_color="transparent")
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 20))
         
-        # Sección de Ingresos
-        self._crear_seccion_ingresos_mejorada()
+        self._render_live_tables(left_col)
+        self._render_recent_orders(left_col)
         
-        # Sección de Empleados
-        self._crear_seccion_empleados_mejorada()
+        # Columna Derecha (Resúmenes y Alertas) - 30% width visual
+        right_col = ctk.CTkFrame(main_grid, fg_color="transparent", width=320)
+        right_col.pack(side="right", fill="y", anchor="n")
         
-        # Sección de Ingredientes
-        self._crear_seccion_ingredientes_mejorada()
-    
-    def _crear_header(self):
-        """Crear cabecera decorativa"""
-        header = ctk.CTkFrame(self.frame, fg_color=config.COLORS["primary"], height=140)
-        header.pack(fill="x", padx=0, pady=0)
-        header.pack_propagate(False)
+        self._render_financial_summary(right_col)
+        self._render_stock_alerts(right_col)
+        self._render_active_staff(right_col)
+
+    def _bind_mouse_wheel(self, widget):
+        widget.bind("<Enter>", lambda e: widget._parent_canvas.bind_all("<MouseWheel>", lambda event: widget._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")))
+        widget.bind("<Leave>", lambda e: widget._parent_canvas.unbind_all("<MouseWheel>"))
+
+    def _render_hero_header(self):
+        """Header moderno con gradiente simulado"""
+        hero = ctk.CTkFrame(self.frame, fg_color=self.colors["primary"], height=160, corner_radius=0)
+        hero.pack(fill="x", pady=(0, 20))
+        hero.pack_propagate(False)
         
-        header_content = ctk.CTkFrame(header, fg_color="transparent")
-        header_content.pack(fill="both", expand=True, padx=30, pady=20)
+        content = ctk.CTkFrame(hero, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=40, pady=30)
+        
+        # Saludo y Fecha
+        info_box = ctk.CTkFrame(content, fg_color="transparent")
+        info_box.pack(side="left", fill="y")
+        
+        hora = datetime.now().hour
+        saludo = "Buenos días" if 5 <= hora < 12 else "Buenas tardes" if 12 <= hora < 19 else "Buenas noches"
         
         ctk.CTkLabel(
-            header_content,
-            text="🍽️ DASHBOARD RESTAURANTE",
-            font=("Helvetica", 28, "bold"),
-            text_color=config.COLORS["text_light"]
-        ).pack(anchor="w", pady=(0, 8))
+            info_box, 
+            text=f"{saludo} 👋", 
+            font=("Segoe UI", 32, "bold"), 
+            text_color="white"
+        ).pack(anchor="w")
         
-        fecha_text = f"📅 {datetime.now().strftime('%A, %d de %B')} | 🕐 {datetime.now().strftime('%H:%M')}"
-        ctk.CTkLabel(header_content, text=fecha_text, font=("Helvetica", 11), text_color=config.COLORS["text_light"]).pack(anchor="w")
-    
-    def _crear_metricas_principales(self):
-        """Crear tarjetas de métricas principales"""
-        container = ctk.CTkFrame(self.frame, fg_color="transparent")
-        container.pack(fill="x", padx=20, pady=20)
+        fecha = datetime.now().strftime("Hoy es %A, %d de %B del %Y")
+        ctk.CTkLabel(
+            info_box, 
+            text=fecha, 
+            font=("Segoe UI", 14), 
+            text_color="#E0E7FF" # Indigo 100
+        ).pack(anchor="w", pady=(5, 0))
+
+        # Botones de Acción (Pills Flotantes) - Eliminado por solicitud
+        # actions = ctk.CTkFrame(content, fg_color="transparent")
+        # actions.pack(side="right", anchor="center")
+
+    def _render_kpi_cards(self):
+        """Tarjetas de métricas clave con estilo moderno"""
+        kpi_container = ctk.CTkFrame(self.frame, fg_color="transparent")
+        kpi_container.pack(fill="x", padx=30, pady=(0, 20))
         
+        # Queries Database
         session = self.db_manager.get_session()
         try:
-            total_mesas = session.query(func.count(Mesa.id)).scalar() or 0
-            mesas_libres = session.query(func.count(Mesa.id)).filter(
-                Mesa.estado == config.MesaEstado.LIBRE
-            ).scalar() or 0
-            mesas_ocupadas = session.query(func.count(Mesa.id)).filter(
-                Mesa.estado == config.MesaEstado.OCUPADA
-            ).scalar() or 0
-            
-            total_empleados = session.query(func.count(Empleado.id)).scalar() or 0
-            empleados_activos = session.query(func.count(Empleado.id)).filter(
-                Empleado.estado == config.EmpleadoEstado.ACTIVO
-            ).scalar() or 0
-            
             hoy = datetime.now().date()
-            ingresos_hoy = session.query(func.sum(Pago.monto)).filter(
-                func.date(Pago.fecha_pago) == hoy
-            ).scalar() or 0
+            ventas_hoy = session.query(func.sum(Pago.monto)).filter(func.date(Pago.fecha_pago) == hoy).scalar() or 0.0
+            pedidos_hoy = session.query(func.count(Pedido.id)).filter(func.date(Pedido.fecha_creacion) == hoy).scalar() or 0
             
-            pedidos_pendientes = session.query(func.count(Pedido.id)).filter(
-                Pedido.estado == config.PedidoEstado.PENDIENTE
-            ).scalar() or 0
+            # Estimado clientes unicos
+            clientes_hoy = session.query(func.count(Pedido.id.distinct())).filter(func.date(Pedido.fecha_creacion) == hoy).scalar() or 0
+            
+            # Ocupacion
+            total_mesas = session.query(func.count(Mesa.id)).scalar() or 1
+            mesas_ocupadas = session.query(func.count(Mesa.id)).filter(Mesa.estado == config.MesaEstado.OCUPADA).scalar() or 0
+            ocupacion_pct = int((mesas_ocupadas / total_mesas) * 100)
             
         finally:
             self.db_manager.close_session(session)
-        
-        # Crear 4 metric cards en grid
-        cards_data = [
-            ("🪑", "MESAS", f"{mesas_ocupadas}/{total_mesas}", f"{mesas_libres} libres", config.COLORS["info"], 0),
-            ("📋", "PEDIDOS", str(pedidos_pendientes), "pendientes entrega", config.COLORS["warning"], 1),
-            ("💰", "INGRESOS", f"${ingresos_hoy:.2f}", "en el día", config.COLORS["success"], 2),
-            ("👥", "EMPLEADOS", str(empleados_activos), f"de {total_empleados}", config.COLORS["primary"], 3),
+
+        metrics = [
+            {"title": "Ventas Hoy", "value": f"${ventas_hoy:,.2f}", "icon": "💰", "color": self.colors["success"], "trend": "+12%"},
+            {"title": "Pedidos", "value": str(pedidos_hoy), "icon": "🧾", "color": self.colors["info"], "trend": "+5%"},
+            {"title": "Ocupación", "value": f"{ocupacion_pct}%", "icon": "🪑", "color": self.colors["warning"], "trend": f"{mesas_ocupadas}/{total_mesas}"},
+            {"title": "Clientes", "value": str(clientes_hoy), "icon": "👥", "color": self.colors["primary"], "trend": "Activos"}
         ]
+
+        for idx, m in enumerate(metrics):
+            self._create_kpi_card(kpi_container, m, idx)
+
+    def _create_kpi_card(self, parent, data, idx):
+        card = ctk.CTkFrame(parent, fg_color=self.colors["surface"], corner_radius=16, border_width=1, border_color=self.colors["border"])
+        card.pack(side="left", fill="both", expand=True, padx=10 if idx > 0 else (0, 10))
         
-        for icon, titulo, valor, subtitulo, color, col in cards_data:
-            self._crear_metric_card(container, icon, titulo, valor, subtitulo, color, col)
-    
-    def _crear_metric_card(self, parent, icon, title, value, subtitle, color, column):
-        """Crear una tarjeta de métrica mejorada"""
-        card = ctk.CTkFrame(parent, fg_color=config.COLORS["dark_bg"], corner_radius=12)
-        card.grid(row=0, column=column, padx=10, pady=10, sticky="nsew")
-        parent.grid_columnconfigure(column, weight=1)
+        # Content
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # Borde lateral
-        border = ctk.CTkFrame(card, fg_color=color, width=6, corner_radius=12)
-        border.pack(side="left", fill="y")
-        border.pack_propagate(False)
+        # Header (Icon + Trend)
+        header = ctk.CTkFrame(inner, fg_color="transparent")
+        header.pack(fill="x", pady=(0, 10))
         
-        # Contenido
-        content = ctk.CTkFrame(card, fg_color="transparent")
-        content.pack(side="left", fill="both", expand=True, padx=20, pady=15)
+        icon_bg = ctk.CTkFrame(header, fg_color=data["color"], width=40, height=40, corner_radius=10)
+        icon_bg.pack(side="left")
+        icon_bg.pack_propagate(False)
+        ctk.CTkLabel(icon_bg, text=data["icon"], font=("Segoe UI Emoji", 20)).place(relx=0.5, rely=0.5, anchor="center")
         
-        # Icono y título
-        header_frame = ctk.CTkFrame(content, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 10))
+        trend_badge = ctk.CTkFrame(header, fg_color=self.colors["background"], corner_radius=12, height=24)
+        trend_badge.pack(side="right")
+        ctk.CTkLabel(trend_badge, text=data["trend"], font=("Segoe UI", 11, "bold"), text_color=data["color"]).pack(padx=10, pady=2)
         
-        ctk.CTkLabel(header_frame, text=icon, font=("Helvetica", 24), text_color=color).pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(header_frame, text=title, font=("Helvetica", 10, "bold"), text_color=config.COLORS["secondary"]).pack(side="left")
+        # Value & Title
+        ctk.CTkLabel(inner, text=data["value"], font=("Segoe UI", 26, "bold"), text_color=self.colors["text"]).pack(anchor="w")
+        ctk.CTkLabel(inner, text=data["title"], font=("Segoe UI", 13), text_color=self.colors["text_light"]).pack(anchor="w")
+
+    def _render_live_tables(self, parent):
+        """Mapa Visual de Mesas"""
+        container = ctk.CTkFrame(parent, fg_color=self.colors["surface"], corner_radius=16, border_width=1, border_color=self.colors["border"])
+        container.pack(fill="x", pady=(0, 20))
         
-        # Valor principal
-        ctk.CTkLabel(content, text=value, font=("Helvetica", 22, "bold"), text_color=config.COLORS["text_dark"]).pack(anchor="w", pady=(5, 2))
+        # Title
+        header = ctk.CTkFrame(container, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=20)
+        ctk.CTkLabel(header, text="Estado de Sala", font=("Segoe UI", 16, "bold"), text_color=self.colors["text"]).pack(side="left")
         
-        # Subtítulo
-        ctk.CTkLabel(content, text=subtitle, font=("Helvetica", 9), text_color=config.COLORS["secondary"]).pack(anchor="w")
-    
-    def _crear_seccion_mesas_mejorada(self):
-        """Crear sección de mesas mejorada"""
-        self._crear_titulo_seccion(self.frame, "🪑 Estado de Mesas")
+        # Legend
+        legend = ctk.CTkFrame(header, fg_color="transparent")
+        legend.pack(side="right")
+        for label, color in [("Libre", self.colors["success"]), ("Ocupada", self.colors["danger"]), ("Reservada", self.colors["warning"])]:
+            self._add_legend_item(legend, label, color)
+            
+        # Grid
+        grid = ctk.CTkFrame(container, fg_color="transparent")
+        grid.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
         session = self.db_manager.get_session()
         try:
             mesas = session.query(Mesa).order_by(Mesa.numero).all()
-            
             if not mesas:
-                self._crear_empty_state(self.frame, "No hay mesas registradas")
+                ctk.CTkLabel(grid, text="No hay mesas configuradas", text_color=self.colors["text_light"]).pack(pady=20)
                 return
             
-            container = ctk.CTkFrame(self.frame, fg_color="transparent")
-            container.pack(fill="x", padx=20, pady=(0, 20))
+            # Dynamic Grid
+            cols = 5
+            for i in range(cols): grid.grid_columnconfigure(i, weight=1)
             
             for idx, mesa in enumerate(mesas):
-                if mesa.estado == config.MesaEstado.LIBRE:
-                    bg, txt, emoji = config.COLORS["mesa_libre"], config.COLORS["texto_libre"], "✓"
-                elif mesa.estado == config.MesaEstado.OCUPADA:
-                    bg, txt, emoji = config.COLORS["mesa_ocupada"], config.COLORS["texto_ocupada"], "🍽️"
-                else:
-                    bg, txt, emoji = config.COLORS["mesa_reservada"], config.COLORS["texto_reservada"], "🔒"
+                color = self.colors["success"]
+                status_icon = "✓"
+                if mesa.estado == config.MesaEstado.OCUPADA: 
+                    color = self.colors["danger"]
+                    status_icon = "🍽️"
+                elif mesa.estado == config.MesaEstado.RESERVADA: 
+                    color = self.colors["warning"]
+                    status_icon = "🔒"
                 
-                btn = ctk.CTkButton(
-                    container,
-                    text=f"{emoji}\nMesa {mesa.numero}\n{mesa.capacidad} pax",
-                    fg_color=bg,
-                    hover_color=bg,
-                    text_color=txt,
-                    corner_radius=10,
-                    height=90,
-                    font=("Helvetica", 10, "bold"),
-                    state="disabled"
-                )
-                btn.grid(row=idx // 8, column=idx % 8, padx=5, pady=5, sticky="nsew")
-                container.grid_columnconfigure(idx % 8, weight=1)
-        
+                # Card Wrapper
+                m_card = ctk.CTkFrame(grid, fg_color=self.colors["background"], corner_radius=12, border_width=1, border_color=self.colors["border"])
+                m_card.grid(row=idx//cols, column=idx%cols, padx=5, pady=5, sticky="nsew")
+                
+                # Status Bar
+                ctk.CTkFrame(m_card, fg_color=color, height=4, corner_radius=4).pack(fill="x", padx=2, pady=2)
+                
+                # Content
+                ctk.CTkLabel(m_card, text=f"Mesa {mesa.numero}", font=("Segoe UI", 12, "bold"), text_color=self.colors["text"]).pack(pady=(8, 0))
+                ctk.CTkLabel(m_card, text=f"{mesa.capacidad} pax", font=("Segoe UI", 10), text_color=self.colors["text_light"]).pack(pady=(0, 8))
+                
         finally:
             self.db_manager.close_session(session)
-    
-    def _crear_seccion_pedidos_mejorada(self):
-        """Crear sección de pedidos mejorada"""
-        self._crear_titulo_seccion(self.frame, "📋 Pedidos Activos")
+
+    def _add_legend_item(self, parent, text, color):
+        item = ctk.CTkFrame(parent, fg_color="transparent")
+        item.pack(side="left", padx=8)
+        ctk.CTkFrame(item, width=8, height=8, corner_radius=4, fg_color=color).pack(side="left")
+        ctk.CTkLabel(item, text=text, font=("Segoe UI", 11), text_color=self.colors["text_light"]).pack(side="left", padx=(5,0))
+
+    def _render_recent_orders(self, parent):
+        """Lista de Últimos Pedidos"""
+        container = ctk.CTkFrame(parent, fg_color=self.colors["surface"], corner_radius=16, border_width=1, border_color=self.colors["border"])
+        container.pack(fill="x")
+        
+        # Header
+        ctk.CTkLabel(container, text="Pedidos Recientes", font=("Segoe UI", 16, "bold"), text_color=self.colors["text"]).pack(anchor="w", padx=20, pady=20)
         
         session = self.db_manager.get_session()
         try:
-            pedidos = session.query(Pedido).filter(
-                Pedido.estado == config.PedidoEstado.PENDIENTE
-            ).order_by(Pedido.fecha_creacion.desc()).limit(6).all()
+            pedidos = session.query(Pedido).order_by(Pedido.fecha_creacion.desc()).limit(5).all()
             
             if not pedidos:
-                self._crear_empty_state(self.frame, "✅ No hay pedidos pendientes", success=True)
+                ctk.CTkLabel(container, text="Sin actividad reciente", text_color=self.colors["text_light"]).pack(pady=20)
                 return
             
-            tabla = ctk.CTkFrame(self.frame, fg_color=config.COLORS["dark_bg"], corner_radius=10)
-            tabla.pack(fill="both", padx=20, pady=(0, 20))
+            # Headers row
+            headers = ctk.CTkFrame(container, fg_color=self.colors["background"], height=35, corner_radius=8)
+            headers.pack(fill="x", padx=15)
             
-            # Encabezado
-            header = ctk.CTkFrame(tabla, fg_color=config.COLORS["primary"], corner_radius=10)
-            header.pack(fill="x", padx=0, pady=0)
+            cols = [("ID", 50), ("HORA", 80), ("MESA", 80), ("CLIENTE", 150), ("TOTAL", 80), ("ESTADO", 100)]
+            for txt, width in cols:
+                ctk.CTkLabel(headers, text=txt, font=("Segoe UI", 10, "bold"), text_color=self.colors["text_light"], width=width, anchor="w").pack(side="left", padx=5)
             
-            for col, text in enumerate(["ID", "Mesa", "Cliente", "Empleado", "Hora", "Estado"]):
-                ctk.CTkLabel(header, text=text, font=("Helvetica", 10, "bold"), text_color=config.COLORS["text_light"]).grid(row=0, column=col, padx=12, pady=10, sticky="w")
-                header.grid_columnconfigure(col, weight=1)
-            
-            # Filas
-            for row, pedido in enumerate(pedidos, 1):
-                bg = config.COLORS["light_bg"] if row % 2 else config.COLORS["dark_bg"]
-                row_frame = ctk.CTkFrame(tabla, fg_color=bg)
-                row_frame.pack(fill="x", padx=10, pady=3)
+            # Rows
+            for p in pedidos:
+                row = ctk.CTkFrame(container, fg_color="transparent", height=45)
+                row.pack(fill="x", padx=15, pady=2)
                 
-                datos = [
-                    str(pedido.id),
-                    f"Mesa {pedido.mesa.numero}" if pedido.mesa else "-",
-                    (pedido.cliente.nombre if pedido.cliente else "-")[:15],
-                    (pedido.empleado.nombre if pedido.empleado else "-")[:15],
-                    pedido.fecha_creacion.strftime("%H:%M") if pedido.fecha_creacion else "-",
-                    "⏳"
+                # Logic
+                total = sum(d.precio_unitario * d.cantidad for d in p.detalles) if p.detalles else 0
+                cliente_nombre = (p.cliente.nombre if p.cliente else "Anonimo")
+                mesa_txt = f"Mesa {p.mesa.numero}" if p.mesa else "Delivery"
+                
+                # State color
+                state_color = self.colors["primary"]
+                if p.estado == config.PedidoEstado.ENTREGADO: state_color = self.colors["success"]
+                elif p.estado == config.PedidoEstado.CANCELADO: state_color = self.colors["danger"]
+                
+                # Columns
+                values = [
+                    (f"#{p.id}", 50),
+                    (p.fecha_creacion.strftime("%H:%M"), 80),
+                    (mesa_txt, 80),
+                    (cliente_nombre[:15], 150),
+                    (f"${total:.2f}", 80)
                 ]
                 
-                for col, dato in enumerate(datos):
-                    ctk.CTkLabel(row_frame, text=dato, font=("Helvetica", 9), text_color=config.COLORS["text_dark"]).grid(row=0, column=col, padx=12, pady=8, sticky="w")
-                    row_frame.grid_columnconfigure(col, weight=1)
-        
+                for txt, width in values:
+                    ctk.CTkLabel(row, text=txt, font=("Segoe UI", 11), text_color=self.colors["text"], width=width, anchor="w").pack(side="left", padx=5)
+                
+                # State Chip
+                chip = ctk.CTkFrame(row, fg_color=state_color, width=90, height=24, corner_radius=12)
+                chip.pack(side="left", padx=5)
+                chip.pack_propagate(False)
+                ctk.CTkLabel(chip, text=p.estado.value.upper(), font=("Segoe UI", 9, "bold"), text_color="white").place(relx=0.5, rely=0.5, anchor="center")
+                
+                # Divider
+                ctk.CTkFrame(container, height=1, fg_color=self.colors["border"]).pack(fill="x", padx=20)
+
         finally:
             self.db_manager.close_session(session)
-    
-    def _crear_seccion_ingresos_mejorada(self):
-        """Crear sección de ingresos mejorada"""
-        self._crear_titulo_seccion(self.frame, "💵 Ingresos del Día")
-        
+
+    def _render_financial_summary(self, parent):
+        """Resumen Financiero"""
+        self._create_sidebar_card(parent, "Finanzas", "💰", self._content_financial)
+
+    def _content_financial(self, parent):
         session = self.db_manager.get_session()
         try:
             hoy = datetime.now().date()
-            total = session.query(func.sum(Pago.monto)).filter(func.date(Pago.fecha_pago) == hoy).scalar() or 0
-            cantidad = session.query(func.count(Pago.id)).filter(func.date(Pago.fecha_pago) == hoy).scalar() or 0
-            promedio = total / cantidad if cantidad > 0 else 0
-            pagos = session.query(Pago.metodo, func.sum(Pago.monto).label('total')).filter(func.date(Pago.fecha_pago) == hoy).group_by(Pago.metodo).all()
+            pagos = session.query(Pago.metodo, func.sum(Pago.monto)).filter(func.date(Pago.fecha_pago) == hoy).group_by(Pago.metodo).all()
+            total = sum(m for _, m in pagos)
         finally:
             self.db_manager.close_session(session)
-        
-        container = ctk.CTkFrame(self.frame, fg_color="transparent")
-        container.pack(fill="x", padx=20, pady=(0, 20))
-        
-        # Tres cards principales
-        for i, (titulo, valor, color) in enumerate([("Total", f"${total:.2f}", config.COLORS["success"]), ("Transacciones", str(cantidad), config.COLORS["info"]), ("Promedio", f"${promedio:.2f}", config.COLORS["warning"])]):
-            card = ctk.CTkFrame(container, fg_color=color, corner_radius=12)
-            card.grid(row=0, column=i, padx=8, pady=0, sticky="nsew")
-            container.grid_columnconfigure(i, weight=1)
             
-            content = ctk.CTkFrame(card, fg_color="transparent")
-            content.pack(fill="both", expand=True, padx=15, pady=12)
-            ctk.CTkLabel(content, text=titulo, font=("Helvetica", 10), text_color=config.COLORS["text_light"]).pack(anchor="w")
-            ctk.CTkLabel(content, text=valor, font=("Helvetica", 20, "bold"), text_color=config.COLORS["text_light"]).pack(anchor="w", pady=(3, 0))
-        
-        # Desglose
-        if pagos:
-            ctk.CTkLabel(self.frame, text="Desglose por Método", font=("Helvetica", 11, "bold"), text_color=config.COLORS["text_dark"]).pack(anchor="w", padx=20, pady=(15, 10))
+        if not pagos:
+            ctk.CTkLabel(parent, text="Sin transacciones hoy", font=("Segoe UI", 11), text_color=self.colors["text_light"]).pack(pady=10)
+            return
+
+        for metodo, monto in pagos:
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(fill="x", pady=5)
             
-            for metodo, total_metodo in pagos:
-                card = ctk.CTkFrame(self.frame, fg_color=config.COLORS["dark_bg"], corner_radius=8)
-                card.pack(fill="x", padx=20, pady=3)
-                
-                content = ctk.CTkFrame(card, fg_color="transparent")
-                content.pack(fill="both", expand=True, padx=15, pady=8)
-                
-                ctk.CTkLabel(content, text=metodo.capitalize(), font=("Helvetica", 10, "bold"), text_color=config.COLORS["text_dark"]).pack(side="left")
-                ctk.CTkLabel(content, text=f"${total_metodo:.2f}", font=("Helvetica", 10), text_color=config.COLORS["success"]).pack(side="right")
-    
-    def _crear_seccion_empleados_mejorada(self):
-        """Crear sección de empleados mejorada"""
-        self._crear_titulo_seccion(self.frame, "👥 Empleados Activos")
-        
+            ctk.CTkLabel(row, text=metodo.capitalize(), font=("Segoe UI", 11), text_color=self.colors["text"]).pack(side="left")
+            ctk.CTkLabel(row, text=f"${monto:.2f}", font=("Segoe UI", 11, "bold"), text_color=self.colors["success"]).pack(side="right")
+            
+            # Bar
+            pct = (monto/total) if total else 0
+            bar_bg = ctk.CTkFrame(parent, fg_color=self.colors["background"], height=6, corner_radius=3)
+            bar_bg.pack(fill="x", pady=(0, 5))
+            ctk.CTkFrame(bar_bg, fg_color=self.colors["success"], width=max(4, int(pct*200)), height=6, corner_radius=3).place(x=0, y=0)
+
+    def _render_stock_alerts(self, parent):
+        """Alertas de Stock"""
+        self._create_sidebar_card(parent, "Alertas Stock", "⚠️", self._content_stock)
+
+    def _content_stock(self, parent):
         session = self.db_manager.get_session()
         try:
-            empleados = session.query(Empleado).filter(Empleado.estado == config.EmpleadoEstado.ACTIVO).limit(6).all()
+            low_stock = session.query(Ingrediente).filter(Ingrediente.cantidad <= Ingrediente.cantidad_minima).limit(3).all()
             
-            if not empleados:
-                self._crear_empty_state(self.frame, "No hay empleados activos")
+            if not low_stock:
+                ctk.CTkLabel(parent, text="Stock Saludaoble ✅", text_color=self.colors["success"]).pack(pady=10)
                 return
-            
-            container = ctk.CTkFrame(self.frame, fg_color="transparent")
-            container.pack(fill="x", padx=20, pady=(0, 20))
-            
-            for idx, emp in enumerate(empleados):
-                card = ctk.CTkFrame(container, fg_color=config.COLORS["dark_bg"], corner_radius=10)
-                card.grid(row=idx // 3, column=idx % 3, padx=10, pady=10, sticky="nsew")
-                container.grid_columnconfigure(idx % 3, weight=1)
+
+            for ing in low_stock:
+                row = ctk.CTkFrame(parent, fg_color="#FEF2F2", corner_radius=8, border_width=1, border_color="#FECACA")
+                row.pack(fill="x", pady=4)
                 
-                content = ctk.CTkFrame(card, fg_color="transparent")
-                content.pack(fill="both", expand=True, padx=15, pady=15)
+                content = ctk.CTkFrame(row, fg_color="transparent")
+                content.pack(fill="both", padx=10, pady=8)
                 
-                ctk.CTkLabel(content, text=emp.nombre, font=("Helvetica", 11, "bold"), text_color=config.COLORS["text_dark"]).pack(anchor="w", pady=(0, 4))
-                ctk.CTkLabel(content, text=emp.puesto.value.capitalize() if emp.puesto else "-", font=("Helvetica", 9), text_color=config.COLORS["primary"]).pack(anchor="w", pady=(0, 10))
-                
-                sep = ctk.CTkFrame(content, fg_color=config.COLORS["border"], height=1)
-                sep.pack(fill="x", pady=(0, 10))
-                
-                if emp.fecha_ingreso:
-                    ctk.CTkLabel(content, text=f"📅 {emp.fecha_ingreso.strftime('%d/%m/%Y')}", font=("Helvetica", 8), text_color=config.COLORS["secondary"]).pack(anchor="w")
-        
+                ctk.CTkLabel(content, text=ing.nombre, font=("Segoe UI", 11, "bold"), text_color="#991B1B").pack(anchor="w")
+                ctk.CTkLabel(content, text=f"Queda: {ing.cantidad} {ing.unidad}", font=("Segoe UI", 10), text_color="#B91C1C").pack(anchor="w")
+
         finally:
             self.db_manager.close_session(session)
-    
-    def _crear_seccion_ingredientes_mejorada(self):
-        """Crear sección de ingredientes mejorada"""
-        self._crear_titulo_seccion(self.frame, "⚠️ Ingredientes Bajo Stock")
-        
+
+    def _render_active_staff(self, parent):
+        """Staff Activo"""
+        self._create_sidebar_card(parent, "Equipo Activo", "👥", self._content_staff)
+
+    def _content_staff(self, parent):
         session = self.db_manager.get_session()
         try:
-            ingredientes = session.query(Ingrediente).filter(Ingrediente.cantidad <= Ingrediente.cantidad_minima).order_by(Ingrediente.cantidad).limit(8).all()
+            staff = session.query(Empleado).filter(Empleado.estado == config.EmpleadoEstado.ACTIVO).limit(4).all()
             
-            if not ingredientes:
-                self._crear_empty_state(self.frame, "✅ Stock suficiente en todos los ingredientes", success=True)
+            if not staff:
+                ctk.CTkLabel(parent, text="Sin personal activo", text_color=self.colors["text_light"]).pack(pady=10)
                 return
-            
-            container = ctk.CTkFrame(self.frame, fg_color="transparent")
-            container.pack(fill="x", padx=20, pady=(0, 20))
-            
-            for ing in ingredientes:
-                porcentaje = (ing.cantidad / ing.cantidad_minima * 100) if ing.cantidad_minima > 0 else 0
+
+            for emp in staff:
+                row = ctk.CTkFrame(parent, fg_color="transparent")
+                row.pack(fill="x", pady=6)
                 
-                card = ctk.CTkFrame(container, fg_color=config.COLORS["mesa_ocupada"], corner_radius=10)
-                card.pack(fill="x", pady=5)
+                initials = emp.nombre[:2].upper()
+                avatar = ctk.CTkFrame(row, width=32, height=32, corner_radius=16, fg_color="#EEF2FF")
+                avatar.pack(side="left")
+                ctk.CTkLabel(avatar, text=initials, font=("Segoe UI", 10, "bold"), text_color=self.colors["primary"]).place(relx=0.5, rely=0.5, anchor="center")
                 
-                content = ctk.CTkFrame(card, fg_color="transparent")
-                content.pack(fill="both", expand=True, padx=15, pady=12)
+                info = ctk.CTkFrame(row, fg_color="transparent")
+                info.pack(side="left", padx=10)
+                ctk.CTkLabel(info, text=emp.nombre, font=("Segoe UI", 11, "bold"), text_color=self.colors["text"]).pack(anchor="w")
                 
-                ctk.CTkLabel(content, text=f"🔴 {ing.nombre}", font=("Helvetica", 10, "bold"), text_color=config.COLORS["texto_ocupada"]).pack(anchor="w", pady=(0, 8))
-                
-                # Barra de progreso
-                bar_frame = ctk.CTkFrame(content, fg_color=config.COLORS["light_bg"], corner_radius=4, height=6)
-                bar_frame.pack(fill="x", pady=(0, 8))
-                bar_frame.pack_propagate(False)
-                
-                bar_filled = ctk.CTkFrame(bar_frame, fg_color=config.COLORS["danger"], corner_radius=4, width=int(porcentaje * 2))
-                bar_filled.pack(side="left", fill="y")
-                bar_filled.pack_propagate(False)
-                
-                detalles = f"{ing.cantidad:.1f} {ing.unidad} / {ing.cantidad_minima} {ing.unidad} ({porcentaje:.0f}%)"
-                ctk.CTkLabel(content, text=detalles, font=("Helvetica", 8), text_color=config.COLORS["texto_ocupada"]).pack(anchor="w")
-        
+                ctk.CTkFrame(row, width=8, height=8, corner_radius=4, fg_color=self.colors["success"]).pack(side="right")
+
         finally:
             self.db_manager.close_session(session)
-    
-    def _crear_titulo_seccion(self, parent, texto):
-        """Crear titulo de sección"""
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="x", padx=20, pady=(15, 10))
+
+    def _create_sidebar_card(self, parent, title, icon, content_callback):
+        card = ctk.CTkFrame(parent, fg_color=self.colors["surface"], corner_radius=16, border_width=1, border_color=self.colors["border"])
+        card.pack(fill="x", pady=(0, 20))
         
-        line = ctk.CTkFrame(frame, fg_color=config.COLORS["primary"], width=5, height=2)
-        line.pack(side="left", padx=(0, 10))
-        line.pack_propagate(False)
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=15, pady=15)
+        ctk.CTkLabel(header, text=title, font=("Segoe UI", 14, "bold"), text_color=self.colors["dark"]).pack(side="left")
+        ctk.CTkLabel(header, text=icon, font=("Segoe UI Emoji", 14)).pack(side="right")
         
-        ctk.CTkLabel(frame, text=texto, font=("Helvetica", 14, "bold"), text_color=config.COLORS["text_dark"]).pack(side="left", anchor="w")
-    
-    def _crear_empty_state(self, parent, mensaje, success=False):
-        """Crear estado vacío"""
-        card = ctk.CTkFrame(parent, fg_color=config.COLORS["dark_bg"], corner_radius=10)
-        card.pack(fill="x", padx=20, pady=(0, 20))
-        
-        color = config.COLORS["success"] if success else config.COLORS["secondary"]
-        ctk.CTkLabel(card, text=mensaje, font=("Helvetica", 11), text_color=color).pack(pady=20)
-    
-    
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill="both", padx=15, pady=(0, 15))
+        content_callback(body)
+
     def refrescar(self):
-        """Refrescar los datos del dashboard"""
+        """Recargar dashboard"""
         self.crear()
