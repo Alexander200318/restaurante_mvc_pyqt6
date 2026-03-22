@@ -73,6 +73,7 @@ class PlatoCategoría(str, Enum):
     POSTRE = "postre"
     BEBIDA = "bebida"
     ACOMPAÑAMIENTO = "acompañamiento"
+    PRODUCTO = "producto"
 
 class PedidoEstado(str, Enum):
     PENDIENTE = "pendiente"

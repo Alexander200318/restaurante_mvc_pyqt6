@@ -73,6 +73,10 @@ class PlatoFormDialog(ctk.CTkToplevel):
         )
         btn_guardar.pack(side="right")
         
+        # Estado inicial componentes según categoría
+        if 'categoria' in self.vars:
+            self._on_categoria_change(self.vars['categoria'].get())
+
         # Centrar
         self.update()
         try:
@@ -81,6 +85,32 @@ class PlatoFormDialog(ctk.CTkToplevel):
             self.geometry(f"+{x}+{y}")
         except: pass
         self.grab_set()
+
+    def _on_categoria_change(self, choice):
+        """Habilita o deshabilita la sección de ingredientes según la categoría"""
+        state = "normal"
+        if choice == config.PlatoCategoría.PRODUCTO.value:
+            state = "disabled"
+            # Limpiar ingredientes si se cambia a producto
+            self.ingredientes_actuales = []
+            if hasattr(self, 'lista_scroll'):
+                self._renderizar_lista_ingredientes()
+        
+        # Habilitar/Deshabilitar widgets de ingredientes
+        try:
+            self.combo_ing.configure(state=state)
+            self.entry_cantidad.configure(state=state)
+            self.btn_add.configure(state=state)
+            
+            # También deshabilitar botones de eliminar en la lista
+            for widget in self.lista_scroll.winfo_children():
+                # El frame row contiene label y botón
+                if isinstance(widget, ctk.CTkFrame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ctk.CTkButton):
+                            child.configure(state=state)
+        except AttributeError:
+            pass # Los widgets aún no existen
 
     def _crear_campos_plato(self):
         self.vars = {}
@@ -129,7 +159,7 @@ class PlatoFormDialog(ctk.CTkToplevel):
         lbl_cat = ctk.CTkLabel(self.frame_datos, text="Categoría", font=("Segoe UI", 12, "bold"), text_color="#374151", anchor="w")
         lbl_cat.grid(row=6, column=0, sticky="w", padx=10, pady=(10, 0))
         
-        combo_cat = ctk.CTkComboBox(self.frame_datos, values=categorias, height=35, fg_color="#F3F4F6", text_color="#1F2937", border_color="#D1D5DB", button_color="#2563EB", dropdown_hover_color="#3B82F6")
+        combo_cat = ctk.CTkComboBox(self.frame_datos, values=categorias, height=35, fg_color="#F3F4F6", text_color="#1F2937", border_color="#D1D5DB", button_color="#2563EB", dropdown_hover_color="#3B82F6", command=self._on_categoria_change)
         if d['categoria']: combo_cat.set(d['categoria'])
         elif categorias: combo_cat.set(categorias[0])
         combo_cat.grid(row=7, column=0, sticky="ew", padx=10, pady=(5, 0))
@@ -213,11 +243,11 @@ class PlatoFormDialog(ctk.CTkToplevel):
         self.entry_cantidad = ctk.CTkEntry(frame_add, width=80, placeholder_text="Cant.", height=35)
         self.entry_cantidad.pack(side="left", padx=(0, 10))
         
-        btn_add = ctk.CTkButton(
+        self.btn_add = ctk.CTkButton(
             frame_add, text="+", width=40, height=35, 
             fg_color=config.COLORS["secondary"], command=self._agregar_ing_lista
         )
-        btn_add.pack(side="left")
+        self.btn_add.pack(side="left")
         
         # --- LISTA ---
         self.lista_scroll = ctk.CTkScrollableFrame(self.frame_ingredientes, fg_color="white")
@@ -375,8 +405,9 @@ class PlatoFormDialog(ctk.CTkToplevel):
         # 6. Disponible
         datos['disponible'] = bool(self.vars['disponible'].get())
         
-        # 7. INGREDIENTES (Validación requerida)
-        if not self.ingredientes_actuales:
+        # 7. INGREDIENTES (Validación requerida, excepto Productos)
+        es_producto = (datos.get('categoria') == config.PlatoCategoría.PRODUCTO.value)
+        if not es_producto and not self.ingredientes_actuales:
              self.lbl_error_ingredientes.configure(text="⚠️ Debes agregar al menos un ingrediente a la receta")
              hay_errores = True
 
