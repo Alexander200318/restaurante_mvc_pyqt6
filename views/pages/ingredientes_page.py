@@ -1,5 +1,5 @@
 """
-Página: Gestión de Ingredientes
+Página: Gestión de Ingredientes - Diseño Master-Detail Moderno
 """
 import customtkinter as ctk
 from controllers.ingredientes_controller import IngredientesController
@@ -14,188 +14,194 @@ class IngredientesPage(ctk.CTkFrame):
         super().__init__(parent, **kwargs)
         
         self.controller = IngredientesController()
+        # Referencias de tabla
         self.tabla = None
         self.tabla_bajo_stock = None
+        
+        # Estado
         self.ingrediente_seleccionado = None
-        self.datos_completos = [] # Copia local para buscador
+        self.datos_completos = [] 
+        
+        # Paginación
+        self.pagina_actual = 1
+        self.elementos_por_pagina = 15
+        self.datos_filtrados_paginacion = [] 
+        
+        # Referencias UI Panel Derecho
+        self.lbl_nombre_perfil = None
+        self.lbl_cantidad_perfil = None
+        self.badge_estado = None
+        self.lbl_estado_texto = None
+        self.lbl_unidad_val = None
+        self.lbl_costo_val = None
+        self.lbl_minimo_val = None
+        self.lbl_proveedor_val = None
+        self.lbl_valor_total = None
+        
+        # Botones Panel Derecho
+        self.btn_abastecer = None
+        self.btn_editar = None
+        self.btn_eliminar = None
         
         self._crear_ui()
         self.refrescar_tablas()
     
     def _crear_ui(self):
-        """Crear interfaz moderna"""
+        """Crear interfaz moderna Master-Detail"""
+        
         # --- HEADER PRINCIPAL ---
-        # Barra superior con color primario completo
+        self.header_bg = config.COLORS["primary"] # Tomate
+        
         frame_header = ctk.CTkFrame(
             self, 
-            fg_color=config.COLORS["primary"],
-            corner_radius=0, # Borde recto para estilo de barra superior
-            height=70
+            fg_color=self.header_bg,
+            corner_radius=0, 
+            height=85
         )
         frame_header.pack(fill="x", padx=0, pady=0)
         
-        # Contenedor interno del header para alinear contenido
+        # Contenedor interno del header
         header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
-        header_content.pack(fill="x", padx=30, pady=15)
+        header_content.pack(fill="x", padx=40, pady=25)
         
+        # Título
         titulo = ctk.CTkLabel(
             header_content,
-            text="📦  INVENTARIO DE COCINA",
+            text="INVENTARIO DE COCINA",
             text_color="#FFFFFF",
-            font=("Segoe UI", 24, "bold")
+            font=("Segoe UI Display", 26, "bold")
         )
         titulo.pack(side="left")
-
-        # --- BARRA DE HERRAMIENTAS (TOOLBAR) ---
-        # Botones de acción separados del header para limpieza visual
-        frame_toolbar = ctk.CTkFrame(self, fg_color="transparent", height=60)
-        frame_toolbar.pack(fill="x", padx=30, pady=(25, 15))
-
-        # Botón Nuevo (Verde Brillante)
-        btn_nuevo = ctk.CTkButton(
-            frame_toolbar,
-            text="＋ Nuevo Producto",
-            command=self.crear_ingrediente,
-            fg_color=config.COLORS["success"],
-            hover_color="#059669",
-            text_color="white",
-            font=("Segoe UI", 13, "bold"),
-            height=45, # Botones más altos
-            corner_radius=10,
-            width=160
-        )
-        btn_nuevo.pack(side="left", padx=(0, 15))
-
-        # Botón Abastecer (Azul Intenso)
-        btn_abastecer = ctk.CTkButton(
-            frame_toolbar,
-            text="📥 Entrada Stock",
-            command=self.abastecer_ingrediente,
-            fg_color=config.COLORS["info"],
-            hover_color="#2563EB", 
-            text_color="white",
-            font=("Segoe UI", 13, "bold"),
-            height=45,
-            corner_radius=10,
-            width=160
-        )
-        btn_abastecer.pack(side="left", padx=0)
         
-        # ELIMINAR BUSCADOR ANTERIOR
-        # Espaciador para empujar el botón editar a la derecha
-        ctk.CTkLabel(frame_toolbar, text="").pack(side="left", expand=True)
-
-        # Botón Eliminar (Rojo/Danger - Outline)
-        btn_eliminar = ctk.CTkButton(
-            frame_toolbar,
-            text="❌ Eliminar",
-            command=self.eliminar_ingrediente_seleccionado,
-            fg_color="transparent",
-            border_width=2,
-            border_color=config.COLORS["danger"],
-            text_color=config.COLORS["danger"],
-            hover_color="#FEE2E2", # Rojo muy claro
-            font=("Segoe UI", 13, "bold"),
-            height=45,
-            corner_radius=10,
-            width=120
+        subtitulo = ctk.CTkLabel(
+            header_content,
+            text=" / Control de Stock e Insumos",
+            text_color="#FEF3C7",
+            font=("Segoe UI", 16)
         )
-        btn_eliminar.pack(side="right", padx=(10, 0)) # Margen izquierdo para separar de editar
+        subtitulo.pack(side="left", pady=(8,0), padx=5)
 
-        # Botón Editar (Naranja/Warning - Estilo Outline/Fantasma para diferenciar)
-        btn_editar = ctk.CTkButton(
-            frame_toolbar,
-            text="✏️ Editar Selección",
-            command=self.editar_ingrediente,
-            fg_color="transparent", 
-            border_width=2,
-            border_color=config.COLORS["warning"],
-            text_color=config.COLORS["warning"],
-            hover_color=config.COLORS["secondary"],
-            font=("Segoe UI", 13, "bold"),
-            height=45,
-            corner_radius=10,
-            width=150
-        )
-        btn_editar.pack(side="right", padx=0)
+        # --- CONTENIDO PRINCIPAL ---
+        self.contenido = ctk.CTkFrame(self, fg_color="#F8FAFC") # Slate-50 background
+        self.contenido.pack(fill="both", expand=True)
         
-        # --- CONTROL Y NAVEGACIÓN (Buscador + Pestañas en la misma línea) ---
-        frame_controls = ctk.CTkFrame(self, fg_color="transparent")
-        frame_controls.pack(fill="x", padx=30, pady=(15, 5)) 
-
-        # 1. BUSCADOR (Izquierda)
+        # Layout de dos columnas
+        frame_layout = ctk.CTkFrame(self.contenido, fg_color="transparent")
+        frame_layout.pack(fill="both", expand=True, padx=40, pady=30)
+        
+        # 1. COLUMNA IZQUIERDA: LISTADO (Flexible)
+        col_izquierda = ctk.CTkFrame(frame_layout, fg_color="transparent")
+        col_izquierda.pack(side="left", fill="both", expand=True, padx=(0, 25))
+        
+        # Barra de Acciones (Floating style)
+        acciones_frame = ctk.CTkFrame(col_izquierda, fg_color="transparent", height=50)
+        acciones_frame.pack(fill="x", pady=(0, 20))
+        
+        # Buscador y Filtros
+        filtros_frame = ctk.CTkFrame(acciones_frame, fg_color="white", corner_radius=20, border_width=1, border_color="#E2E8F0")
+        filtros_frame.pack(side="left", fill="y")
+        
+        ctk.CTkLabel(filtros_frame, text="🔍", font=("Segoe UI", 14), text_color="#64748B").pack(side="left", padx=(15, 5))
         self.entry_busqueda = ctk.CTkEntry(
-            frame_controls,
-            placeholder_text="🔍 Buscar por producto o proveedor",
-            placeholder_text_color="#6B7280",
-            width=300, 
-            height=35,
-            font=("Segoe UI", 12),
-            text_color="#1F2937",
-            corner_radius=10, 
-            border_width=1,
-            border_color="#9CA3AF",
-            fg_color="#FFFFFF"
+            filtros_frame, 
+            placeholder_text="Buscar ingrediente...", 
+            border_width=0, 
+            fg_color="transparent",
+            width=200,
+            text_color="#334155",
+            font=("Segoe UI", 13)
         )
-        self.entry_busqueda.pack(side="left")
-        
-        # Vincular evento de teclado para búsqueda en tiempo real
+        self.entry_busqueda.pack(side="left", padx=(0, 15), pady=5)
         self.entry_busqueda.bind("<KeyRelease>", self._filtrar_resultados)
 
-        # 2. PESTAÑAS (Derecha) - Usamos SegmentedButton para simular tabs pero controlando posición
-        self.vista_actual = ctk.StringVar(value="Inventario Completo")
+        # Segmented Control para Vistas
+        self.vista_actual = ctk.StringVar(value="Todos")
         self.selector_vista = ctk.CTkSegmentedButton(
-            frame_controls,
-            values=["Inventario Completo", "Alertas de Stock"],
+            acciones_frame,
+            values=["Todos", "Bajo Stock"],
             command=self._cambiar_vista,
             variable=self.vista_actual,
-            font=("Segoe UI", 13, "bold"),
             selected_color=config.COLORS["primary"],
             selected_hover_color=config.COLORS["accent"],
-            unselected_color=config.COLORS["secondary"],
-            unselected_hover_color="#4B5563",
-            text_color="#FFFFFF",
+            unselected_color="white", 
+            unselected_hover_color="#E2E8F0",
+            text_color="#334155",
+            font=("Segoe UI", 12, "bold"),
             height=35
         )
-        self.selector_vista.pack(side="right")
-        
-        # Estado de Paginación
-        self.pagina_actual = 1
-        self.elementos_por_pagina = 10 # Probemos con 10 para ver si aparece
-        self.datos_filtrados_paginacion = [] 
+        self.selector_vista.set("Todos")
+        self.selector_vista.pack(side="left", padx=20)
 
-        # --- ÁREA DE CONTENIDO (Tablas) ---
-        self.frame_contenido = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_contenido.pack(fill="both", expand=True, padx=30, pady=(5, 30))
+        # Botón Nuevo
+        btn_nuevo = ctk.CTkButton(
+            acciones_frame,
+            text="＋ NUEVO PRODUCTO",
+            command=self.crear_ingrediente,
+            fg_color="#10B981", 
+            hover_color="#059669",
+            text_color="white",
+            font=("Segoe UI", 12, "bold"),
+            height=42,
+            corner_radius=21,
+            width=160
+        )
+        btn_nuevo.pack(side="right")
         
-        # Frame Tabla 1: Todos
-        self.frame_tabla_todos = ctk.CTkFrame(self.frame_contenido, fg_color=config.COLORS["secondary"], corner_radius=15)
+        # Tabla Containers
+        self.card_tabla = ctk.CTkFrame(
+            col_izquierda, 
+            fg_color="white", 
+            corner_radius=16,
+            border_width=0
+        )
+        self.card_tabla.pack(fill="both", expand=True)
         
+        # Linea decorativa top tabla
+        ctk.CTkFrame(self.card_tabla, height=4, fg_color=config.COLORS["primary"], corner_radius=2).pack(fill="x")
+
+        # Frame Tabla Todos (se muestra por defecto)
+        self.frame_tabla_todos = ctk.CTkFrame(self.card_tabla, fg_color="transparent")
+        self.frame_tabla_todos.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+
         self.tabla = TreeViewWidget(
             self.frame_tabla_todos,
-            columnas=["Producto", "Total en Inventario", "Costo", "Mínimo", "Proveedor", "Estado"],
-            altura=18, # Reducimos un poco para dar espacio a paginación
-            row_height=35,       
-            font_size=12,        
-            heading_font_size=11
+            columnas=["Producto", "Stock", "Costo", "Mínimo", "Proveedor", "Estado"],
+            altura=15,
+            font_size=13,
+            heading_font_size=12,
+            row_height=40
         )
-        # Controles de Paginación (Solo para tabla 1)
-        # Usamos pack(side="bottom") ANTES de la tabla pero con fill x
-        # En realidad, empaquetamos la tabla PRIMERO y luego la paginación ABAJO
-        
-        self.frame_paginacion = ctk.CTkFrame(self.frame_tabla_todos, fg_color="transparent", height=40)
-        self.frame_paginacion.pack(side="bottom", fill="x", padx=15, pady=15)
-        
-        # Tabla va arriba y expande
-        self.tabla.pack(side="top", fill="both", expand=True, padx=15, pady=(15, 5))
+        self.tabla.pack(fill="both", expand=True)
         self.tabla.set_on_select(self._on_ingrediente_select)
+
+        # Frame Tabla Bajo Stock (oculto por defecto)
+        self.frame_tabla_bajo = ctk.CTkFrame(self.card_tabla, fg_color="transparent")
+        
+        self.tabla_bajo_stock = TreeViewWidget(
+            self.frame_tabla_bajo,
+            columnas=["Producto", "Stock Actual", "Mínimo", "Estado"],
+            altura=15,
+            font_size=13,
+            heading_font_size=12,
+            row_height=40
+        )
+        self.tabla_bajo_stock.pack(fill="both", expand=True)
+        self.tabla_bajo_stock.set_on_select(self._on_ingrediente_select)
+
+        # Controles de Paginación (Al pie de la card)
+        self.frame_paginacion = ctk.CTkFrame(self.card_tabla, fg_color="transparent", height=40)
+        self.frame_paginacion.pack(side="bottom", fill="x", padx=10, pady=10)
         
         self.btn_anterior = ctk.CTkButton(
             self.frame_paginacion,
-            text="< Anterior",
-            width=100,
-            fg_color="#374151",
-            hover_color="#4B5563",
+            text="◀ Anterior",
+            width=90,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#F1F5F9",
+            text_color="#64748B",
+            hover_color="#E2E8F0",
+            state="disabled",
             command=lambda: self._cambiar_pagina(-1)
         )
         self.btn_anterior.pack(side="left")
@@ -204,42 +210,217 @@ class IngredientesPage(ctk.CTkFrame):
             self.frame_paginacion,
             text="Página 1 de 1",
             font=("Segoe UI", 12, "bold"),
-            text_color="#D1D5DB"
+            text_color="#64748B"
         )
-        self.lbl_paginacion.pack(side="left", expand=True, fill="x") # Centrado y expandir
-        
+        self.lbl_paginacion.pack(side="left", expand=True)
+
         self.btn_siguiente = ctk.CTkButton(
             self.frame_paginacion,
-            text="Siguiente >",
-            width=100,
-            fg_color="#374151",
-            hover_color="#4B5563",
+            text="Siguiente ▶",
+            width=90,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#F1F5F9",
+            text_color="#64748B",
+            hover_color="#E2E8F0",
+            state="disabled",
             command=lambda: self._cambiar_pagina(1)
         )
         self.btn_siguiente.pack(side="right")
-
-        # Frame Tabla 2: Bajo Stock
-        self.frame_tabla_bajo = ctk.CTkFrame(self.frame_contenido, fg_color=config.COLORS["secondary"], corner_radius=15)
         
-        self.tabla_bajo_stock = TreeViewWidget(
-            self.frame_tabla_bajo,
-            columnas=["Producto", "Stock Actual", "Mínimo", "Estado"],
-            altura=20, # Tabla de alertas puede ser completa (menos items usualmente)
-            row_height=35,
-            font_size=12,
-            heading_font_size=11
+        # 2. COLUMNA DERECHA: DETALLE (Fijo)
+        self.panel_derecho = ctk.CTkFrame(
+            frame_layout, 
+            fg_color="white", 
+            width=380,
+            corner_radius=20
         )
-        self.tabla_bajo_stock.pack(fill="both", expand=True, padx=15, pady=15)
+        self.panel_derecho.pack(side="right", fill="y", padx=0, pady=0)
+        self.panel_derecho.pack_propagate(False)
         
-        # Inicializar vista
-        self._cambiar_vista("Inventario Completo")
+        self._construir_detalle_ui() # Construir panel derecho
+
+    def _construir_detalle_ui(self):
+        """Construye el panel derecho de detalle del ingrediente"""
+        
+        # Header Perfil
+        header_perfil = ctk.CTkFrame(self.panel_derecho, fg_color="#F1F5F9", height=90, corner_radius=15)
+        header_perfil.pack(fill="x", padx=10, pady=10)
+        header_perfil.pack_propagate(False) 
+        
+        # Icono Ingrediente
+        icon_frame = ctk.CTkFrame(header_perfil, width=60, height=60, corner_radius=30, fg_color="white")
+        icon_frame.place(relx=0.15, rely=0.5, anchor="center")
+        ctk.CTkLabel(icon_frame, text="🍎", font=("Segoe UI", 30)).place(relx=0.5, rely=0.5, anchor="center")
+        
+        # Info Principal Header
+        self.lbl_nombre_perfil = ctk.CTkLabel(
+            header_perfil,
+            text="Seleccione Producto",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#1E293B",
+            anchor="w"
+        )
+        self.lbl_nombre_perfil.place(relx=0.32, rely=0.35, anchor="w")
+        
+        self.lbl_cantidad_perfil = ctk.CTkLabel(
+            header_perfil,
+            text="---",
+            font=("Segoe UI", 13),
+            text_color="#64748B",
+            anchor="w"
+        )
+        self.lbl_cantidad_perfil.place(relx=0.32, rely=0.65, anchor="w")
+        
+        # Badge Estado (Posicionado absoluto en header corner)
+        self.badge_estado = ctk.CTkFrame(header_perfil, fg_color="#E2E8F0", corner_radius=6, height=20, width=80)
+        self.badge_estado.place(relx=0.95, rely=0.2, anchor="ne")
+        self.lbl_estado_texto = ctk.CTkLabel(self.badge_estado, text="---", font=("Segoe UI", 9, "bold"), text_color="#64748B")
+        self.lbl_estado_texto.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Detalles (Grid)
+        self.info_container = ctk.CTkFrame(self.panel_derecho, fg_color="transparent")
+        self.info_container.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Filas de datos
+        self._crear_fila_info("⚖️ Unidad Medida", "lbl_unidad_val")
+        self._crear_fila_info("💲 Costo Unitario", "lbl_costo_val")
+        self._crear_fila_info("📉 Stock Mínimo", "lbl_minimo_val")
+        self._crear_fila_info("🏭 Proveedor", "lbl_proveedor_val")
+        
+        ctk.CTkFrame(self.info_container, height=1, fg_color="#E2E8F0").pack(fill="x", pady=15)
+        
+        self._crear_fila_info("💵 Valor en Stock", "lbl_valor_total", font_val=("Segoe UI", 14, "bold"), color_val=config.COLORS["primary"])
+
+        # Botones Pie (Acciones)
+        frame_btns = ctk.CTkFrame(self.panel_derecho, fg_color="transparent")
+        frame_btns.pack(fill="x", padx=20, pady=20, side="bottom")
+        
+        # Botón Abastecer (Principal acción)
+        self.btn_abastecer = ctk.CTkButton(
+            frame_btns,
+            text="📥  ENTRADA DE STOCK",
+            command=self.abastecer_ingrediente,
+            fg_color=config.COLORS["info"],
+            hover_color="#2563EB",
+            text_color="white",
+            height=45,
+            corner_radius=10,
+            font=("Segoe UI", 12, "bold"),
+            state="disabled"
+        )
+        self.btn_abastecer.pack(fill="x", pady=(0, 10))
+        
+        # Botones secundarios (row)
+        btns_sec_frame = ctk.CTkFrame(frame_btns, fg_color="transparent")
+        btns_sec_frame.pack(fill="x")
+        
+        self.btn_editar = ctk.CTkButton(
+            btns_sec_frame,
+            text="Editar",
+            command=self.editar_ingrediente,
+            fg_color="#F1F5F9", 
+            text_color="#475569",
+            hover_color="#E2E8F0",
+            height=35,
+            corner_radius=8,
+            font=("Segoe UI", 12, "bold"),
+            width=150,
+            state="disabled"
+        )
+        self.btn_editar.pack(side="left", padx=(0, 5), expand=True, fill="x")
+        
+        self.btn_eliminar = ctk.CTkButton(
+            btns_sec_frame,
+            text="Eliminar",
+            command=self.eliminar_ingrediente_seleccionado,
+            fg_color="#FEE2E2",
+            text_color="#B91C1C",
+            hover_color="#FCA5A5", 
+            height=35, 
+            corner_radius=8,
+            font=("Segoe UI", 12, "bold"),
+            width=150,
+            state="disabled"
+        )
+        self.btn_eliminar.pack(side="right", padx=(5, 0), expand=True, fill="x")
+
+    def _crear_fila_info(self, label, attr_name, font_val=("Segoe UI", 13), color_val="#334155"):
+        frame = ctk.CTkFrame(self.info_container, fg_color="transparent")
+        frame.pack(fill="x", pady=6)
+        
+        ctk.CTkLabel(frame, text=label, font=("Segoe UI", 12), text_color="#94A3B8").pack(side="left")
+        val = ctk.CTkLabel(frame, text="---", font=font_val, text_color=color_val)
+        val.pack(side="right")
+        setattr(self, attr_name, val)
+
+    def _actualizar_panel_derecho(self):
+        """Actualizar datos del panel derecho"""
+        if not self.ingrediente_seleccionado:
+            self._reset_panel()
+            return
+
+        # Activar controles
+        self.btn_abastecer.configure(state="normal")
+        self.btn_editar.configure(state="normal")
+        self.btn_eliminar.configure(state="normal")
+        
+        # Datos vienen de tabla: (ID, Producto, Stock, Costo, Mínimo, Proveedor, Estado)
+        # Ojo: dependiendo de la vista, el formato cambia ligeramente.
+        # Mejor recuperar objeto completo del controller por ID para estar seguros
+        ing_id = self.ingrediente_seleccionado[0]
+        success, ing, _ = self.controller.obtener_ingrediente(ing_id)
+        
+        if success and ing:
+            self.lbl_nombre_perfil.configure(text=ing.nombre)
+            self.lbl_cantidad_perfil.configure(text=f"{ing.cantidad} {ing.unidad}")
+            
+            self.lbl_unidad_val.configure(text=ing.unidad)
+            self.lbl_costo_val.configure(text=f"${ing.precio_unitario:.2f}")
+            self.lbl_minimo_val.configure(text=f"{ing.cantidad_minima} {ing.unidad}")
+            self.lbl_proveedor_val.configure(text=ing.proveedor or "---")
+            
+            valor_total = ing.cantidad * ing.precio_unitario
+            self.lbl_valor_total.configure(text=f"${valor_total:.2f}")
+            
+            # Estado Badge
+            estado = "DISPONIBLE"
+            bg_color = "#DCFCE7" # Verde claro
+            text_color = "#15803D"
+            
+            if ing.cantidad <= 0:
+                estado = "AGOTADO"
+                bg_color = "#FEE2E2" # Rojo claro
+                text_color = "#991B1B"
+            elif ing.esta_bajo_stock():
+                estado = "BAJO STOCK"
+                bg_color = "#FEF3C7" # Amarillo claro
+                text_color = "#92400E"
+                
+            self.badge_estado.configure(fg_color=bg_color)
+            self.lbl_estado_texto.configure(text=estado, text_color=text_color)
+            
+    def _reset_panel(self):
+        self.lbl_nombre_perfil.configure(text="Seleccione Producto")
+        self.lbl_cantidad_perfil.configure(text="---")
+        self.badge_estado.configure(fg_color="#E2E8F0")
+        self.lbl_estado_texto.configure(text="---", text_color="#64748B")
+        
+        self.lbl_unidad_val.configure(text="---")
+        self.lbl_costo_val.configure(text="---")
+        self.lbl_minimo_val.configure(text="---")
+        self.lbl_proveedor_val.configure(text="---")
+        self.lbl_valor_total.configure(text="---")
+        
+        self.btn_abastecer.configure(state="disabled")
+        self.btn_editar.configure(state="disabled")
+        self.btn_eliminar.configure(state="disabled")
 
     def _cambiar_pagina(self, direccion):
         """Moverse entre páginas"""
         nueva_pagina = self.pagina_actual + direccion
         
         total_items = len(self.datos_filtrados_paginacion)
-        # Calcular total páginas
         total_paginas = max(1, (total_items + self.elementos_por_pagina - 1) // self.elementos_por_pagina)
         
         if 1 <= nueva_pagina <= total_paginas:
@@ -253,80 +434,86 @@ class IngredientesPage(ctk.CTkFrame):
         
         items_pagina = self.datos_filtrados_paginacion[inicio:fin]
         
-        # Actualizar tabla (ocultando ID)
         datos_visibles = [d[1:] for d in items_pagina]
-        self.tabla.limpiar()
-        # Pasamos items_pagina como segundo argumento para mantener la referencia al ID oculto
-        self.tabla.agregar_filas(datos_visibles, items_pagina)
         
-        # Actualizar UI paginación
+        if self.vista_actual.get() == "Todos":
+            self.tabla.limpiar()
+            self.tabla.agregar_filas(datos_visibles, items_pagina)
+        else:
+            self.tabla_bajo_stock.limpiar()
+            self.tabla_bajo_stock.agregar_filas(datos_visibles, items_pagina)
+        
+        # Paginación UI
         total_items = len(self.datos_filtrados_paginacion)
         total_paginas = max(1, (total_items + self.elementos_por_pagina - 1) // self.elementos_por_pagina)
-        
         self.lbl_paginacion.configure(text=f"Página {self.pagina_actual} de {total_paginas} | Total: {total_items}")
         
-        # Estados botones
         self.btn_anterior.configure(state="normal" if self.pagina_actual > 1 else "disabled")
         self.btn_siguiente.configure(state="normal" if self.pagina_actual < total_paginas else "disabled")
 
     def _cambiar_vista(self, vista):
         """Cambiar entre frames de tabla"""
-        if vista == "Inventario Completo":
+        if vista == "Todos":
             self.frame_tabla_bajo.pack_forget()
-            self.frame_tabla_todos.pack(fill="both", expand=True)
+            self.frame_tabla_todos.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+            self.datos_filtrados_paginacion = self.datos_completos # Restaurar filtro base
         else:
             self.frame_tabla_todos.pack_forget()
-            self.frame_tabla_bajo.pack(fill="both", expand=True)
-    
+            self.frame_tabla_bajo.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+            # Aquí deberíamos filtrar por bajos, pero ya lo hacemos en refrescar o filtrar
+            # Simular filtro
+            self.refrescar_tablas() # Re-fetch más fácil
+            
+        self.pagina_actual = 1
+        self._filtrar_resultados()
+
     def _on_ingrediente_select(self, datos):
-        # Al quitar el ID de la vista, necesitamos recuperarlo de otra forma
-        # TreeViewWidget debería estar configurado para manejar una columna oculta para el ID
-        # O ajustamos para usar el ID invisible que Treeview suele tener
         self.ingrediente_seleccionado = datos
+        self._actualizar_panel_derecho()
     
     def refrescar_tablas(self):
+        # 1. Obtener todos
         success, datos, msg = self.controller.obtener_todos_ingredientes()
-        
         if success:
-            self.datos_completos = datos # Guardamos copia para filtrar
-            self._filtrar_resultados()   # Esto activará la paginación interna
-        
-        success, datos_bajo, _ = self.controller.obtener_bajo_stock_formateados()
-        if success:
-            # datos_bajo también trae el ID en posición 0
-            datos_bajo_visibles = [d[1:] for d in datos_bajo]
-            
-            self.tabla_bajo_stock.limpiar()
-            self.tabla_bajo_stock.agregar_filas(datos_bajo_visibles, datos_bajo)
-            
+            self.datos_completos = datos 
+
+        # 2. Si estamos en modo bajo stock, filtrar o pedir solo esos
+        if self.vista_actual.get() == "Bajo Stock":
+            success_bajo, datos_bajo, _ = self.controller.obtener_bajo_stock_formateados()
+            if success_bajo:
+                 self.datos_filtrados_paginacion = datos_bajo
+            else:
+                 self.datos_filtrados_paginacion = []
+        else:
+             self.datos_filtrados_paginacion = self.datos_completos
+             
+        self._filtrar_resultados() # Aplica busqueda sobre lo actual y pagina
+
     def _filtrar_resultados(self, *args):
-        """Filtrar tabla principal según texto de búsqueda y paginar"""
-        if self.vista_actual.get() != "Inventario Completo":
-            return # Solo filtramos la tabla principal por ahora
-            
+        # Filtro de texto sobre la colección actual (ya sea Todos o Bajo Stock)
         busqueda = self.entry_busqueda.get().strip().lower()
         
-        datos_filtrados = []
+        # Si venimos de cambiar vista, datos_filtrados_paginacion tiene la base
+        # Pero si escribimos, tenemos que filtrar sobre esa base... o sobre datos_completos?
+        # Simplificación: Si hay búsqueda, busca en datos_completos. Si no, respeta la vista.
         
-        # Si no hay búsqueda, mostrar todo
+        base = self.datos_completos
+        if self.vista_actual.get() == "Bajo Stock":
+             success_bajo, datos_bajo, _ = self.controller.obtener_bajo_stock_formateados()
+             if success_bajo: base = datos_bajo
+        
+        resultado = []
         if not busqueda:
-            datos_filtrados = self.datos_completos
+            resultado = base
         else:
-            # Filtrar
-            for item in self.datos_completos:
-                # item: (id, nombre, stock_fmt, precio_fmt, min, prov, estado)
-                nombre = str(item[1]).lower()
-                proveedor = str(item[5]).lower() if item[5] else ""
-                
-                # Búsqueda parcial en nombre o proveedor
-                if busqueda in nombre or busqueda in proveedor:
-                    datos_filtrados.append(item)
-        
-        # Guardar resultado del filtro para paginación
-        self.datos_filtrados_paginacion = datos_filtrados
-        self.pagina_actual = 1 # Resetear a página 1 al filtrar
-        
-        # Renderizar vista actual
+            for item in base:
+                # Buscar en todas las columnas texto
+                texto_fila = " ".join([str(x).lower() for x in item])
+                if busqueda in texto_fila:
+                    resultado.append(item)
+                    
+        self.datos_filtrados_paginacion = resultado
+        self.pagina_actual = 1
         self._actualizar_vista_tabla()
 
     
@@ -357,134 +544,75 @@ class IngredientesPage(ctk.CTkFrame):
                 self.refrescar_tablas()
             else:
                 DialogUtils.mostrar_error("Error", msg)
-        
         FormDialog(self.winfo_toplevel(), "Nuevo Ingrediente", campos, procesar)
     
-    
     def abastecer_ingrediente(self):
-        """Aumentar stock de un ingrediente existente"""
-        if not self.ingrediente_seleccionado:
-            DialogUtils.mostrar_advertencia("Advertencia", "Por favor selecciona el producto al que quieres agregar stock")
-            return
-        
+        if not self.ingrediente_seleccionado: return
         ingrediente_id = self.ingrediente_seleccionado[0]
         
-        # Obtener datos reales
         success, ing, msg = self.controller.obtener_ingrediente(ingrediente_id)
-        if not success or not ing:
-            DialogUtils.mostrar_error("Error", "No se pudo cargar el producto.")
-            return
+        if not success or not ing: return
         
-        # Mostrar diálogo simple para sumar
-        mensaje = f"Actualmente tienes: {ing.cantidad} {ing.unidad}\n\n¿Cuánto TE LLEGÓ hoy?"
-        
-        # Creamos un dialogo especial para sumar cantidad
-        # Usamos FormDialog con un solo campo
         campos = {
             'cantidad_recibida': {
                 'label': f'Cantidad Recibida ({ing.unidad})', 
-                'type': 'number', 
-                'required': True, 
-                'min': 0.001
+                'type': 'number', 'required': True, 'min': 0.001
             }
         }
         
         def procesar(valores):
             try:
                 recibida = float(valores.get('cantidad_recibida', 0))
-                # La validación <= 0 ya la hace FormDialog (min=0.001)
-                
                 nueva_cantidad_total = ing.cantidad + recibida
                 
-                # Actualizar en BD
                 success, _, msg = self.controller.ajustar_cantidad(ingrediente_id, nueva_cantidad_total)
-                
                 if success:
-                    DialogUtils.mostrar_exito(
-                        "Stock Actualizado", 
-                        f"¡Listo! Sumamos {recibida}.\nNuevo Total: {nueva_cantidad_total} {ing.unidad}"
-                    )
+                    DialogUtils.mostrar_exito("Stock Actualizado", f"Nuevo Total: {nueva_cantidad_total} {ing.unidad}")
                     self.refrescar_tablas()
+                    self._actualizar_panel_derecho() # Actualizar card
                 else:
-                    DialogUtils.mostrar_error("Error al guardar", msg)
-            except ValueError:
-                # Este caso es muy raro porque FormDialog ya valida números
-                pass
+                    DialogUtils.mostrar_error("Error", msg)
+            except ValueError: pass
 
         FormDialog(self.winfo_toplevel(), f"Entrada de {ing.nombre}", campos, procesar)
 
     def eliminar_ingrediente_seleccionado(self):
-        """Eliminar ingrediente seleccionado"""
-        if not self.ingrediente_seleccionado:
-            DialogUtils.mostrar_advertencia(
-                "Advertencia",
-                "Selecciona un ingrediente de la tabla primero para eliminarlo."
-            )
-            return
-
-        ingrediente_id = self.ingrediente_seleccionado[0]
+        if not self.ingrediente_seleccionado: return
         
-        # Validar STOCK antes de eliminar
-        # Necesitamos cargar el objeto real para ver la cantidad actual exacta
+        ingrediente_id = self.ingrediente_seleccionado[0]
         success_stock, ing_obj, _ = self.controller.obtener_ingrediente(ingrediente_id)
         
         if success_stock and ing_obj and ing_obj.cantidad > 0:
-            DialogUtils.mostrar_error(
-                "No se puede eliminar",
-                f"El producto '{ing_obj.nombre}' tiene stock activo ({ing_obj.cantidad} {ing_obj.unidad}).\n\n"
-                "Por seguridad, el sistema no permite eliminar productos con existencia.\n"
-                "Debes dejar el stock en 0 antes de borrarlo definitivamente."
-            )
+            DialogUtils.mostrar_error("Stock Activo", "No se puede eliminar productos con existencia > 0.")
             return
 
-        # El nombre suele estar en la posición 1 de la tupla de datos visible o completa
-        # self.ingrediente_seleccionado contiene todos los campos (id, nombre, ...)
-        nombre = self.ingrediente_seleccionado[1]
-        
-        confirmacion = DialogUtils.pedir_confirmacion(
-            "Confirmar Eliminación",
-            f"¿Estás seguro de que deseas eliminar '{nombre}'?\n\nEsta acción no se puede deshacer."
-        )
-        
+        confirmacion = DialogUtils.pedir_confirmacion("Eliminar", "¿Estás seguro? Esta acción es irreversible.")
         if confirmacion:
             success, _, msg = self.controller.eliminar_ingrediente(ingrediente_id)
             if success:
-                DialogUtils.mostrar_exito("Eliminado", f"El producto '{nombre}' ha sido eliminado correctamente.")
+                self.ingrediente_seleccionado = None
+                self._reset_panel()
                 self.refrescar_tablas()
-            else:
-                DialogUtils.mostrar_error("Error", f"No se pudo eliminar: {msg}")
+                DialogUtils.mostrar_exito("Eliminado", "Producto eliminado correctamente.")
 
     def editar_ingrediente(self):
-        print("Seleccionado:", self.ingrediente_seleccionado)
-
-        if not self.ingrediente_seleccionado:
-            DialogUtils.mostrar_advertencia(
-                "Advertencia",
-                "Selecciona un ingrediente de la tabla primero"
-            )
-            return
-
+        if not self.ingrediente_seleccionado: return
         ingrediente_id = self.ingrediente_seleccionado[0]
         
-        # Obtener datos reales desde base de datos usando el ID
         success, ing, msg = self.controller.obtener_ingrediente(ingrediente_id)
-        if not success or not ing:
-             DialogUtils.mostrar_error("Error", f"No se pudo cargar el ingrediente: {msg}")
-             return
+        if not success: return
 
         unidades = self.controller.obtener_unidades_disponibles()
-
         campos = {
-            'nombre': {'label': 'Nombre del Producto', 'type': 'text', 'value': ing.nombre, 'required': True},
-            'unidad': {'label': 'Unidad (Kilos, Litros...)', 'type': 'dropdown', 'options': unidades, 'editable': True, 'value': ing.unidad, 'required': True},
+            'nombre': {'label': 'Producto', 'type': 'text', 'value': ing.nombre, 'required': True},
+            'unidad': {'label': 'Unidad', 'type': 'dropdown', 'options': unidades, 'editable': True, 'value': ing.unidad, 'required': True},
             'precio_unitario': {'label': 'Costo Unitario ($)', 'type': 'number', 'value': ing.precio_unitario, 'min': 0, 'required': True},
-            'cantidad': {'label': '¿Cuánto tienes HOY en la cocina?', 'type': 'number', 'value': ing.cantidad, 'min': 0, 'required': True}, 
-            'cantidad_minima': {'label': 'AVISARME cuando quede menos de:', 'type': 'number', 'value': ing.cantidad_minima, 'min': 0, 'required': True},
+            'cantidad': {'label': 'Stock Actual', 'type': 'number', 'value': ing.cantidad, 'min': 0, 'required': True}, 
+            'cantidad_minima': {'label': 'Stock Mínimo Alerta', 'type': 'number', 'value': ing.cantidad_minima, 'min': 0, 'required': True},
             'proveedor': {'label': 'Proveedor', 'type': 'text', 'value': ing.proveedor, 'required': True}
         }
 
         def procesar(valores):
-            # 1. Actualizar datos básicos (nombre, precio, etc)
             success, _, msg = self.controller.actualizar_ingrediente(
                 ingrediente_id=ingrediente_id,
                 nombre=valores.get('nombre'),
@@ -494,15 +622,13 @@ class IngredientesPage(ctk.CTkFrame):
                 proveedor=valores.get('proveedor')
             )
             
-            # 2. Actualizar CANTIDAD (Stock) si se modificó
             if success and valores.get('cantidad') is not None:
-                nueva_cantidad = float(valores.get('cantidad'))
-                if nueva_cantidad != ing.cantidad:
-                     self.controller.ajustar_cantidad(ingrediente_id, nueva_cantidad)
+                nueva = float(valores.get('cantidad'))
+                if nueva != ing.cantidad: self.controller.ajustar_cantidad(ingrediente_id, nueva)
 
             if success:
-                DialogUtils.mostrar_exito("Éxito", "Ingrediente actualizado")
                 self.refrescar_tablas()
+                self._actualizar_panel_derecho() # Actualizar card inmediata
             else:
                 DialogUtils.mostrar_error("Error", msg)
 

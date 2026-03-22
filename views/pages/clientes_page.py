@@ -295,14 +295,27 @@ class ClientesPage(ctk.CTkFrame):
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
+        # Habilitar scroll con mouse
+        self._bind_mouse_wheel(self.canvas)
+        self._bind_mouse_wheel(self.scrollable_frame)
+
         # Grid frame para los clientes (4 columnas)
         self.grid_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
         self.grid_frame.pack(fill="both", expand=True, padx=8)
+        self._bind_mouse_wheel(self.grid_frame)
         
         # Configurar 4 columnas con peso igual
         for i in range(4):
             self.grid_frame.grid_columnconfigure(i, weight=1)
     
+    def _bind_mouse_wheel(self, widget):
+        # Scroll para Windows con velocidad ajustada
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            
+        widget.bind("<Enter>", lambda e: self.canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        widget.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
+
     def refrescar_tabla(self):
         """Refrescar grid de clientes"""
         # 1. Obtener todos los clientes de la BD

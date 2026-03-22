@@ -60,27 +60,39 @@ class DashboardPage:
         # 2. Key Metrics Row (Tarjetas de KPI)
         self._render_kpi_cards()
         
-        # 3. Contenido Principal (Grid 2 columnas)
+        # 3. Contenido Principal (Grid Responsive)
         main_grid = ctk.CTkFrame(self.frame, fg_color="transparent")
         main_grid.pack(fill="both", expand=True, padx=30, pady=(10, 30))
         
-        # Columna Izquierda (Tablas y Pedidos) - 70% width visual
+        # Grid configuración: Columna 0 flexible, Columna 1 fija
+        main_grid.grid_columnconfigure(0, weight=1) 
+        main_grid.grid_columnconfigure(1, weight=0, minsize=420) # Sidebar fijo de 420px para máxima visibilidad
+
+        # Columna Izquierda (Tablas y Pedidos)
         left_col = ctk.CTkFrame(main_grid, fg_color="transparent")
-        left_col.pack(side="left", fill="both", expand=True, padx=(0, 20))
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 25))
         
         self._render_live_tables(left_col)
         self._render_recent_orders(left_col)
         
-        # Columna Derecha (Resúmenes y Alertas) - 30% width visual
-        right_col = ctk.CTkFrame(main_grid, fg_color="transparent", width=320)
-        right_col.pack(side="right", fill="y", anchor="n")
+        # Columna Derecha (Resúmenes y Alertas)
+        # Importante: Usar width explícito para evitar colapso visual inicial
+        right_col = ctk.CTkFrame(main_grid, fg_color="transparent", width=420)
+        right_col.grid(row=0, column=1, sticky="nw") # Alineado arriba-izquierda
         
         self._render_financial_summary(right_col)
+        ctk.CTkFrame(right_col, fg_color="transparent", height=20).pack() # Espaciador
         self._render_stock_alerts(right_col)
+        ctk.CTkFrame(right_col, fg_color="transparent", height=20).pack() # Espaciador
         self._render_active_staff(right_col)
 
     def _bind_mouse_wheel(self, widget):
-        widget.bind("<Enter>", lambda e: widget._parent_canvas.bind_all("<MouseWheel>", lambda event: widget._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")))
+        # Aumentamos la velocidad del scroll (ajustado a x8 para mayor fluidez)
+        # event.delta suele ser 120 (arriba) o -120 (abajo) en Windows
+        def _on_mousewheel(event):
+            widget._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)) * 8, "units")
+            
+        widget.bind("<Enter>", lambda e: widget._parent_canvas.bind_all("<MouseWheel>", _on_mousewheel))
         widget.bind("<Leave>", lambda e: widget._parent_canvas.unbind_all("<MouseWheel>"))
 
     def _render_hero_header(self):
@@ -130,8 +142,8 @@ class DashboardPage:
             ventas_hoy = session.query(func.sum(Pago.monto)).filter(func.date(Pago.fecha_pago) == hoy).scalar() or 0.0
             pedidos_hoy = session.query(func.count(Pedido.id)).filter(func.date(Pedido.fecha_creacion) == hoy).scalar() or 0
             
-            # Estimado clientes unicos
-            clientes_hoy = session.query(func.count(Pedido.id.distinct())).filter(func.date(Pedido.fecha_creacion) == hoy).scalar() or 0
+            # Total Clientes Registrados
+            clientes_hoy = session.query(func.count(Cliente.id)).scalar() or 0
             
             # Ocupacion
             total_mesas = session.query(func.count(Mesa.id)).scalar() or 1
@@ -145,36 +157,57 @@ class DashboardPage:
             {"title": "Ventas Hoy", "value": f"${ventas_hoy:,.2f}", "icon": "💰", "color": self.colors["success"], "trend": "+12%"},
             {"title": "Pedidos", "value": str(pedidos_hoy), "icon": "🧾", "color": self.colors["info"], "trend": "+5%"},
             {"title": "Ocupación", "value": f"{ocupacion_pct}%", "icon": "🪑", "color": self.colors["warning"], "trend": f"{mesas_ocupadas}/{total_mesas}"},
-            {"title": "Clientes", "value": str(clientes_hoy), "icon": "👥", "color": self.colors["primary"], "trend": "Activos"}
+            {"title": "Clientes", "value": str(clientes_hoy), "icon": "👥", "color": self.colors["primary"], "trend": "Registrados"}
         ]
 
         for idx, m in enumerate(metrics):
             self._create_kpi_card(kpi_container, m, idx)
 
     def _create_kpi_card(self, parent, data, idx):
-        card = ctk.CTkFrame(parent, fg_color=self.colors["surface"], corner_radius=16, border_width=1, border_color=self.colors["border"])
+        # Diseño "Glassmorphism" sutil con borde suave y más padding
+        card = ctk.CTkFrame(
+            parent, 
+            fg_color="white", 
+            corner_radius=20, # Más redondeado
+            border_width=1, 
+            border_color="#E2E8F0"
+        )
+        # Usamos PACK porque el contenedor padre usa PACK (en el código revisado arriba puede ser pack o grid dependiendo del contexto, 
+        # pero en _render_kpi_cards original se usaba pack o grid según la sección.
+        # Revisando _render_kpi_cards: usa `kpi_container.grid_columnconfigure`? NO, usa PACK en la versión leída.
+        # ERROR: En la versión leída arriba, `_render_kpi_cards` usa `self._create_kpi_card` dentro de un loop.
+        # Vamos a asumir grid si el contenedor padre fue configurado con grid columns, pero en el código LEIDO usa pack:
+        # `kpi_container.pack(fill="x", padx=30, pady=(0, 20))`
+        # Y dentro del loop hace: `self._create_kpi_card(kpi_container, m, idx)`
+        # Y dentro de `_create_kpi_card` leido usa PACK: `card.pack(side="left", fill="both", expand=True, padx=10 if idx > 0 else (0, 10))`
+        
+        # Vamos a mantener PACK para compatibilidad pero con estilo moderno
         card.pack(side="left", fill="both", expand=True, padx=10 if idx > 0 else (0, 10))
         
-        # Content
+        # Efecto de "top border" de color
+        ctk.CTkFrame(card, height=4, fg_color=data["color"], corner_radius=20).pack(fill="x", padx=1, pady=1)
+
         inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(fill="both", expand=True, padx=20, pady=20)
+        inner.pack(fill="both", expand=True, padx=24, pady=20)
         
         # Header (Icon + Trend)
         header = ctk.CTkFrame(inner, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 10))
+        header.pack(fill="x", pady=(0, 15))
         
-        icon_bg = ctk.CTkFrame(header, fg_color=data["color"], width=40, height=40, corner_radius=10)
+        # Icono con fondo suave
+        icon_bg = ctk.CTkFrame(header, fg_color=data["color"], width=48, height=48, corner_radius=24) # Circular
         icon_bg.pack(side="left")
         icon_bg.pack_propagate(False)
-        ctk.CTkLabel(icon_bg, text=data["icon"], font=("Segoe UI Emoji", 20)).place(relx=0.5, rely=0.5, anchor="center")
+        ctk.CTkLabel(icon_bg, text=data["icon"], font=("Segoe UI Emoji", 24)).place(relx=0.5, rely=0.5, anchor="center")
         
-        trend_badge = ctk.CTkFrame(header, fg_color=self.colors["background"], corner_radius=12, height=24)
-        trend_badge.pack(side="right")
-        ctk.CTkLabel(trend_badge, text=data["trend"], font=("Segoe UI", 11, "bold"), text_color=data["color"]).pack(padx=10, pady=2)
+        # Trend badge
+        trend_bg = ctk.CTkFrame(header, fg_color="#F8FAFC", corner_radius=12)
+        trend_bg.pack(side="right", anchor="ne")
+        ctk.CTkLabel(trend_bg, text=data["trend"], font=("Segoe UI", 11, "bold"), text_color=data["color"]).pack(padx=10, pady=4)
         
         # Value & Title
-        ctk.CTkLabel(inner, text=data["value"], font=("Segoe UI", 26, "bold"), text_color=self.colors["text"]).pack(anchor="w")
-        ctk.CTkLabel(inner, text=data["title"], font=("Segoe UI", 13), text_color=self.colors["text_light"]).pack(anchor="w")
+        ctk.CTkLabel(inner, text=data["value"], font=("Segoe UI Display", 32, "bold"), text_color="#0F172A").pack(anchor="w", pady=(5,0))
+        ctk.CTkLabel(inner, text=data["title"], font=("Segoe UI", 14), text_color="#64748B").pack(anchor="w")
 
     def _render_live_tables(self, parent):
         """Mapa Visual de Mesas"""
@@ -257,7 +290,7 @@ class DashboardPage:
             headers = ctk.CTkFrame(container, fg_color=self.colors["background"], height=35, corner_radius=8)
             headers.pack(fill="x", padx=15)
             
-            cols = [("ID", 50), ("HORA", 80), ("MESA", 80), ("CLIENTE", 150), ("TOTAL", 80), ("ESTADO", 100)]
+            cols = [("HORA", 80), ("MESA", 80), ("CLIENTE", 150), ("TOTAL", 80), ("ESTADO", 100)]
             for txt, width in cols:
                 ctk.CTkLabel(headers, text=txt, font=("Segoe UI", 10, "bold"), text_color=self.colors["text_light"], width=width, anchor="w").pack(side="left", padx=5)
             
@@ -278,7 +311,6 @@ class DashboardPage:
                 
                 # Columns
                 values = [
-                    (f"#{p.id}", 50),
                     (p.fecha_creacion.strftime("%H:%M"), 80),
                     (mesa_txt, 80),
                     (cliente_nombre[:15], 150),

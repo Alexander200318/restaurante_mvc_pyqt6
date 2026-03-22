@@ -5,7 +5,8 @@ Lógica más compleja: cálculos, estados, relaciones con platos
 from typing import List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
-from database.models import Pedido, DetallePedido, Plato, Cliente, Mesa, Pago
+from sqlalchemy import select
+from database.models import Pedido, DetallePedido, Plato, Cliente, Mesa, Pago, Ingrediente, plato_ingrediente_association
 from database.queries import QueriesManager
 import config
 from utils.validators import validar_cantidad
@@ -120,6 +121,40 @@ class PedidosModel(BaseModel):
             pedido = session.query(Pedido).filter(Pedido.id == pedido_id).first()
             if not pedido:
                 raise ValueError(f"Pedido {pedido_id} no encontrado")
+            
+            # Lógica de descuento de inventario cuando el pedido está LISTO
+            # Solo si pasamos de un estado diferente a LISTO (para evitar descuentos dobles)
+            if nuevo_estado == config.PedidoEstado.LISTO and pedido.estado != config.PedidoEstado.LISTO:
+                
+                # Recorrer los platos del pedido
+                for detalle in pedido.detalles:
+                    plato = detalle.plato
+                    cantidad_platos = detalle.cantidad
+                    
+                    # Consultar ingredientes de la receta mediante la tabla de asociación
+                    stmt = select(plato_ingrediente_association).where(
+                        plato_ingrediente_association.c.plato_id == plato.id
+                    )
+                    receta = session.execute(stmt).fetchall()
+                    
+                    for item in receta:
+                        ing_id = item.ingrediente_id
+                        cant_unitaria = item.cantidad_requerida
+                        total_consumo = cant_unitaria * cantidad_platos
+                        
+                        # Obtener y actualizar ingrediente
+                        ingrediente = session.query(Ingrediente).filter(Ingrediente.id == ing_id).first()
+                        if ingrediente:
+                            # Restar del stock
+                            ingrediente.cantidad -= total_consumo
+                            
+                            # Validar que no quede negativo (opcional, o permitir negativos lógicos)
+                            if ingrediente.cantidad < 0:
+                                ingrediente.cantidad = 0
+                            
+                            # Actualizar estado del ingrediente
+                            if ingrediente.cantidad <= ingrediente.cantidad_minima:
+                                ingrediente.estado = config.IngredienteEstado.AGOTADO # O BAJO_STOCK si existe
             
             pedido.estado = nuevo_estado
             
