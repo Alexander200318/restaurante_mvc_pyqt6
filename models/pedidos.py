@@ -4,7 +4,7 @@ Lógica más compleja: cálculos, estados, relaciones con platos
 """
 from typing import List, Optional, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database.models import Pedido, DetallePedido, Plato, Cliente, Mesa, Pago
 from database.queries import QueriesManager
 import config
@@ -150,14 +150,24 @@ class PedidosModel(BaseModel):
     def obtener_pedido(self, pedido_id: int) -> Tuple[bool, Optional[Pedido], str]:
         """Obtener un pedido completo"""
         def _obtener(session):
-            return session.query(Pedido).filter(Pedido.id == pedido_id).first()
+            return session.query(Pedido).options(
+                joinedload(Pedido.cliente),
+                joinedload(Pedido.mesa),
+                joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+                joinedload(Pedido.empleado)
+            ).filter(Pedido.id == pedido_id).first()
         
         return self._obtener_con_manejo_errores(_obtener)
     
     def obtener_todos_pedidos(self) -> Tuple[bool, List[Pedido], str]:
         """Obtener todos los pedidos"""
         def _obtener(session):
-            return session.query(Pedido).order_by(Pedido.fecha_creacion.desc()).all()
+            return session.query(Pedido).options(
+                joinedload(Pedido.cliente),
+                joinedload(Pedido.mesa),
+                joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+                joinedload(Pedido.empleado)
+            ).order_by(Pedido.fecha_creacion.desc()).all()
         
         return self._obtener_con_manejo_errores(_obtener)
     
@@ -178,7 +188,12 @@ class PedidosModel(BaseModel):
     def obtener_pedidos_por_cliente(self, cliente_id: int) -> Tuple[bool, List[Pedido], str]:
         """Obtener todos los pedidos de un cliente"""
         def _obtener(session):
-            return session.query(Pedido).filter(
+            return session.query(Pedido).options(
+                joinedload(Pedido.cliente),
+                joinedload(Pedido.mesa),
+                joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+                joinedload(Pedido.empleado)
+            ).filter(
                 Pedido.cliente_id == cliente_id
             ).order_by(Pedido.fecha_creacion.desc()).all()
         

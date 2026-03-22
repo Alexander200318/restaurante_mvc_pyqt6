@@ -3,7 +3,7 @@ Consultas complejas de base de datos con JOINs y filtros
 """
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
 from .models import (
     Mesa, Cliente, Empleado, Ingrediente, Plato, 
@@ -17,7 +17,12 @@ class QueriesManager:
     @staticmethod
     def obtener_pedidos_por_mesa(session: Session, mesa_id: int) -> List[Pedido]:
         """Obtener todos los pedidos de una mesa específica"""
-        return session.query(Pedido).filter(Pedido.mesa_id == mesa_id).all()
+        return session.query(Pedido).options(
+            joinedload(Pedido.cliente),
+            joinedload(Pedido.mesa),
+            joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+            joinedload(Pedido.empleado)
+        ).filter(Pedido.mesa_id == mesa_id).all()
     
     @staticmethod
     def obtener_pedidos_activos(session: Session) -> List[Pedido]:
@@ -27,12 +32,22 @@ class QueriesManager:
             config.PedidoEstado.PREPARANDO,
             config.PedidoEstado.LISTO
         ]
-        return session.query(Pedido).filter(Pedido.estado.in_(estados_activos)).all()
+        return session.query(Pedido).options(
+            joinedload(Pedido.cliente),
+            joinedload(Pedido.mesa),
+            joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+            joinedload(Pedido.empleado)
+        ).filter(Pedido.estado.in_(estados_activos)).all()
     
     @staticmethod
     def obtener_pedidos_por_fecha(session: Session, fecha_inicio: datetime, fecha_fin: datetime) -> List[Pedido]:
         """Obtener pedidos en un rango de fechas"""
-        return session.query(Pedido).filter(
+        return session.query(Pedido).options(
+            joinedload(Pedido.cliente),
+            joinedload(Pedido.mesa),
+            joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+            joinedload(Pedido.empleado)
+        ).filter(
             and_(
                 Pedido.fecha_creacion >= fecha_inicio,
                 Pedido.fecha_creacion <= fecha_fin
@@ -42,7 +57,12 @@ class QueriesManager:
     @staticmethod
     def obtener_pedidos_por_estado(session: Session, estado: config.PedidoEstado) -> List[Pedido]:
         """Obtener pedidos por estado específico"""
-        return session.query(Pedido).filter(Pedido.estado == estado).all()
+        return session.query(Pedido).options(
+            joinedload(Pedido.cliente),
+            joinedload(Pedido.mesa),
+            joinedload(Pedido.detalles).joinedload(DetallePedido.plato),
+            joinedload(Pedido.empleado)
+        ).filter(Pedido.estado == estado).all()
     
     @staticmethod
     def obtener_mesas_disponibles(session: Session) -> List[Mesa]:

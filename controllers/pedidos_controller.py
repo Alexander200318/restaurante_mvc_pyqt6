@@ -2,6 +2,7 @@
 Controlador: Pedidos
 """
 from models.pedidos import PedidosModel
+from models.pagos import PagosModel
 import config
 from .base_controller import BaseController
 
@@ -10,6 +11,7 @@ class PedidosController(BaseController):
     
     def __init__(self):
         self.model = PedidosModel()
+        self.pagos_model = PagosModel()
     
     # Crear
     def crear_pedido(self, cliente_id: int, mesa_id: int, empleado_id: int = None):
@@ -33,7 +35,24 @@ class PedidosController(BaseController):
         """Cambiar estado"""
         try:
             estado = config.PedidoEstado(nuevo_estado)
-            return self.model.cambiar_estado_pedido(pedido_id, estado)
+            success, pedido, msg = self.model.cambiar_estado_pedido(pedido_id, estado)
+            
+            if success and estado == config.PedidoEstado.ENTREGADO:
+                # Al entregar, generar registro de pago pendiente automáticamente
+                try:
+                    self.pagos_model.registrar_pago(
+                        pedido_id=pedido_id, 
+                        monto=0.0, # 0.0 indica pendiente (saldo por cobrar)
+                        metodo=config.PagoMetodo.EFECTIVO # Placeholder
+                    )
+                except ValueError:
+                    # Ignorar si ya existe pago
+                    pass
+                except Exception as e:
+                    print(f"Advertencia: No se pudo crear pago automático: {e}")
+            
+            return success, pedido, msg
+
         except ValueError:
             return False, None, f"Estado inválido: {nuevo_estado}"
     

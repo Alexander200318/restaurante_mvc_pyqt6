@@ -3,7 +3,7 @@ Modelo de Negocio: Pagos
 """
 from typing import List, Optional, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database.models import Pago, Pedido, Mesa
 from database.queries import QueriesManager
 import config
@@ -155,14 +155,22 @@ class PagosModel(BaseModel):
     def obtener_todos_pagos(self) -> Tuple[bool, List[Pago], str]:
         """Obtener todos los pagos"""
         def _obtener(session):
-            return session.query(Pago).order_by(Pago.fecha_pago.desc()).all()
+            return session.query(Pago).options(
+                joinedload(Pago.pedido).joinedload(Pedido.cliente),
+                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+            ).order_by(Pago.fecha_pago.desc()).all()
         
         return self._obtener_con_manejo_errores(_obtener)
     
     def obtener_pagos_pendientes(self) -> Tuple[bool, List[Pago], str]:
         """Obtener pagos que no están completados"""
         def _obtener(session):
-            return QueriesManager.obtener_pagos_pendientes(session)
+            return session.query(Pago).options(
+                joinedload(Pago.pedido).joinedload(Pedido.cliente),
+                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+            ).filter(
+                Pago.estado.in_([config.PagoEstado.PENDIENTE, config.PagoEstado.PARCIAL])
+            ).all()
         
         return self._obtener_con_manejo_errores(_obtener)
     
