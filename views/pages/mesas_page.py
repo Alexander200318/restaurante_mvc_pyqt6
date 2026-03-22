@@ -11,8 +11,7 @@ class MesasPage(ctk.CTkFrame):
     """Módulo de Mesas con Grid Visual"""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, fg_color=config.COLORS["light_bg"], **kwargs)
-        
+        super().__init__(parent, fg_color="#F1F5F9", **kwargs)        
         self.controller = MesasController()
         self.controller_clientes = ClientesController()
         self.mesa_seleccionada = None
@@ -828,6 +827,8 @@ class MesasPage(ctk.CTkFrame):
         
         self._actualizar_carrito_visual(carrito_items)
     
+    
+        
     def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
         """Procesar y crear el nuevo pedido"""
         from controllers.pedidos_controller import PedidosController
@@ -850,15 +851,26 @@ class MesasPage(ctk.CTkFrame):
             return
         
         try:
-            # Crear cliente primero
+            # Crear cliente primero (SIN pasar mesa_id)
             controller_clientes = ClientesController()
             success, cliente, msg = controller_clientes.crear_cliente(
-                nombre=f"Mesa {mesa.numero}",
-                mesa_id=mesa.id
+                cedula=f"MESA_{mesa.numero}",  # Identificador único
+                nombre=f"Mesa {mesa.numero}",   # Nombre del cliente
+                apellido="Cliente",             # Apellido por defecto
+                telefono=None,
+                direccion=None,
+                correo=None
             )
             
             if not success:
                 DialogUtils.mostrar_error("Error", f"Error al crear cliente: {msg}")
+                return
+            
+            # Asignar el cliente a la mesa usando el controlador de mesas
+            success, _, msg = self.controller.asignar_cliente_mesa(mesa.id, cliente.id)
+            
+            if not success:
+                DialogUtils.mostrar_error("Error", f"Error al asignar cliente a mesa: {msg}")
                 return
             
             # Crear pedido
@@ -901,7 +913,7 @@ class MesasPage(ctk.CTkFrame):
             import traceback
             traceback.print_exc()
             DialogUtils.mostrar_error("Error", f"Error: {str(e)}")
-    
+        
     
     def crear_mesa(self):
         """Crear nueva mesa"""
