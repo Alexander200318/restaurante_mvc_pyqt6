@@ -21,10 +21,11 @@ class IngredientesController(BaseController):
     
     # Actualizar
     def actualizar_ingrediente(self, ingrediente_id: int, nombre: str = None,
+                              unidad: str = None,
                               precio_unitario: float = None, cantidad_minima: float = None,
                               proveedor: str = None):
         """Actualizar ingrediente"""
-        return self.model.actualizar_ingrediente(ingrediente_id, nombre, precio_unitario, 
+        return self.model.actualizar_ingrediente(ingrediente_id, nombre, unidad, precio_unitario, 
                                                 cantidad_minima, proveedor)
     
     def ajustar_cantidad(self, ingrediente_id: int, cantidad_nueva: float):
@@ -51,11 +52,10 @@ class IngredientesController(BaseController):
             datos.append((
                 ing.id,
                 ing.nombre,
-                ing.cantidad,
-                ing.unidad,
-                ing.precio_unitario,
+                f"{ing.cantidad} {ing.unidad}", # Cantidad Total formateada (ej: 50.0 Kilogramos)
+                f"${ing.precio_unitario:.2f}",
                 ing.cantidad_minima,
-                ing.proveedor or "",
+                ing.proveedor or "Sin proveedor",
                 ing.estado.value
             ))
         return True, datos, msg
@@ -69,18 +69,26 @@ class IngredientesController(BaseController):
         
         datos = []
         for ing in ingredientes:
+            faltante = ing.cantidad_minima - ing.cantidad
+            if ing.cantidad == 0:
+                mensaje = f"SIN STOCK (Pedir {ing.cantidad_minima})"
+            else:
+                mensaje = f"BAJO: Faltan {faltante:.1f} {ing.unidad} para el mínimo"
+            
+            # Formato amigable para el usuario:
+            # En lugar de solo números, le decimos "Tienes X, necesitas mínimo Y"
             datos.append((
                 ing.id,
                 ing.nombre,
-                f"{ing.cantidad}/{ing.cantidad_minima} {ing.unidad}",
+                f"Tienes: {ing.cantidad} {ing.unidad} | Mínimo: {ing.cantidad_minima}",
                 f"${ing.precio_unitario:.2f}",
-                "AGOTADO"
+                mensaje 
             ))
         return True, datos, msg
     
     def obtener_unidades_disponibles(self):
         """Obtener lista de unidades"""
-        return ["kg", "L", "g", "ml", "unidades", "docenas", "botellas", "cajas"]
+        return ["Kilogramos", "Litros", "Gramos", "Mililitros", "Libras", "Onzas", "Piezas", "Unidades", "Docenas", "Paquetes", "Sobres", "Latas", "Botellas", "Cajas", "Bolsas", "Frascos"]
     
     # Eliminar
     def eliminar_ingrediente(self, ingrediente_id: int):

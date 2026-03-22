@@ -11,43 +11,33 @@ from .base_model import BaseModel
 class IngredientesModel(BaseModel):
     """Lógica de negocio para Ingredientes"""
     
+    # Lista de caracteres prohibidos para prevenir inyecciones básicas o formatos inválidos
+    CARACTERES_PROHIBIDOS = ["<", ">", "{", "}", "[", "]", "*", ";"]
+
+    def _contiene_prohibidos(self, texto: str) -> bool:
+        if not texto: return False
+        return any(c in texto for c in self.CARACTERES_PROHIBIDOS)
     def crear_ingrediente(self, nombre: str, unidad: str, precio_unitario: float,
                          cantidad: float = 0.0, cantidad_minima: float = 5.0,
                          proveedor: str = None) -> Tuple[bool, Optional[Ingrediente], str]:
         """Crear nuevo ingrediente"""
-        # Validar nombre
-        es_valido, nombre_validado, msg = validar_nombre(nombre)
-        if not es_valido:
-            return False, None, msg
-        
-        # Validar unidad
-        es_valido, unidad_validada, msg = validar_unidad(unidad)
-        if not es_valido:
-            return False, None, msg
-        
-        # Validar precio
-        es_valido, precio_validado, msg = validar_precio(str(precio_unitario))
-        if not es_valido:
-            return False, None, msg
-        
-        # Validar cantidad
-        es_valido, cantidad_validada, msg = validar_cantidad(str(cantidad))
-        if not es_valido:
-            return False, None, msg
-        
+        # Validación de seguridad del backend (para datos inyectados)
+        if self._contiene_prohibidos(nombre) or self._contiene_prohibidos(proveedor) or self._contiene_prohibidos(unidad):
+             return False, None, "Se han detectado caracteres no permitidos (<, >, {, }, *, ;)"
+             
         def _crear(session):
             # Verificar que no exista
             existente = session.query(Ingrediente).filter(
-                Ingrediente.nombre == nombre_validado
+                Ingrediente.nombre == nombre
             ).first()
             if existente:
-                raise ValueError(f"Ingrediente '{nombre_validado}' ya existe")
+                raise ValueError(f"Ingrediente '{nombre}' ya existe")
             
             nuevo_ingrediente = Ingrediente(
-                nombre=nombre_validado,
-                unidad=unidad_validada,
-                precio_unitario=precio_validado,
-                cantidad=cantidad_validada,
+                nombre=nombre.strip(),
+                unidad=unidad.strip(),
+                precio_unitario=precio_unitario,
+                cantidad=cantidad,
                 cantidad_minima=cantidad_minima,
                 proveedor=proveedor,
                 estado=config.IngredienteEstado.DISPONIBLE
@@ -58,22 +48,15 @@ class IngredientesModel(BaseModel):
         return self._ejecutar_con_manejo_errores(_crear)
     
     def actualizar_ingrediente(self, ingrediente_id: int, nombre: Optional[str] = None,
+                              unidad: Optional[str] = None,
                               precio_unitario: Optional[float] = None,
                               cantidad_minima: Optional[float] = None,
                               proveedor: Optional[str] = None) -> Tuple[bool, Optional[Ingrediente], str]:
         """Actualizar datos de ingrediente"""
-        if nombre:
-            es_valido, nombre_validado, msg = validar_nombre(nombre)
-            if not es_valido:
-                return False, None, msg
         
-        if precio_unitario is not None:
-            es_valido, precio_validado, msg = validar_precio(str(precio_unitario))
-            if not es_valido:
-                return False, None, msg
-        else:
-            precio_validado = None
-        
+        if self._contiene_prohibidos(nombre) or self._contiene_prohibidos(proveedor) or self._contiene_prohibidos(unidad):
+             return False, None, "Se han detectado caracteres no permitidos (<, >, {, }, *, ;)"
+             
         def _actualizar(session):
             ingrediente = session.query(Ingrediente).filter(
                 Ingrediente.id == ingrediente_id
@@ -82,17 +65,21 @@ class IngredientesModel(BaseModel):
                 raise ValueError(f"Ingrediente {ingrediente_id} no encontrado")
             
             if nombre:
+                nombre_limpio = nombre.strip()
                 # Verificar no exista otro con ese nombre
                 otro = session.query(Ingrediente).filter(
-                    Ingrediente.nombre == nombre_validado,
+                    Ingrediente.nombre == nombre_limpio,
                     Ingrediente.id != ingrediente_id
                 ).first()
                 if otro:
-                    raise ValueError(f"Ya existe ingrediente '{nombre_validado}'")
-                ingrediente.nombre = nombre_validado
+                    raise ValueError(f"Ya existe ingrediente '{nombre_limpio}'")
+                ingrediente.nombre = nombre_limpio
             
-            if precio_validado is not None:
-                ingrediente.precio_unitario = precio_validado
+            if unidad:
+                ingrediente.unidad = unidad.strip()
+            
+            if precio_unitario is not None:
+                ingrediente.precio_unitario = precio_unitario
             
             if cantidad_minima is not None:
                 ingrediente.cantidad_minima = cantidad_minima

@@ -87,10 +87,11 @@ def validar_descripcion(descripcion: str, max_length: int = 500) -> Tuple[bool, 
 
 def validar_unidad(unidad: str) -> Tuple[bool, Optional[str], str]:
     """Valida unidad de medida"""
-    unidades_validas = ["kg", "L", "g", "ml", "unidades", "docenas", "botellas", "cajas"]
-    unidad = unidad.strip().lower()
-    if unidad not in unidades_validas:
-        return False, None, f"Unidad inválida. Opciones: {', '.join(unidades_validas)}"
+    unidad = unidad.strip()
+    if not unidad:
+        return False, None, "La unidad no puede estar vacía"
+    if len(unidad) > 30: # Ampliado límite para "Botellas de 500ml" etc
+        return False, None, "La unidad no puede exceder 30 caracteres"
     return True, unidad, ""
 
 def validar_porcentaje(porcentaje: str) -> Tuple[bool, Optional[float], str]:
