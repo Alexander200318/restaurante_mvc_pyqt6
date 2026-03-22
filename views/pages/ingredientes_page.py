@@ -85,6 +85,23 @@ class IngredientesPage(ctk.CTkFrame):
         # Espaciador para empujar el botón editar a la derecha
         ctk.CTkLabel(frame_toolbar, text="").pack(side="left", expand=True)
 
+        # Botón Eliminar (Rojo/Danger - Outline)
+        btn_eliminar = ctk.CTkButton(
+            frame_toolbar,
+            text="❌ Eliminar",
+            command=self.eliminar_ingrediente_seleccionado,
+            fg_color="transparent",
+            border_width=2,
+            border_color=config.COLORS["danger"],
+            text_color=config.COLORS["danger"],
+            hover_color="#FEE2E2", # Rojo muy claro
+            font=("Segoe UI", 13, "bold"),
+            height=45,
+            corner_radius=10,
+            width=120
+        )
+        btn_eliminar.pack(side="right", padx=(10, 0)) # Margen izquierdo para separar de editar
+
         # Botón Editar (Naranja/Warning - Estilo Outline/Fantasma para diferenciar)
         btn_editar = ctk.CTkButton(
             frame_toolbar,
@@ -395,6 +412,47 @@ class IngredientesPage(ctk.CTkFrame):
                 pass
 
         FormDialog(self.winfo_toplevel(), f"Entrada de {ing.nombre}", campos, procesar)
+
+    def eliminar_ingrediente_seleccionado(self):
+        """Eliminar ingrediente seleccionado"""
+        if not self.ingrediente_seleccionado:
+            DialogUtils.mostrar_advertencia(
+                "Advertencia",
+                "Selecciona un ingrediente de la tabla primero para eliminarlo."
+            )
+            return
+
+        ingrediente_id = self.ingrediente_seleccionado[0]
+        
+        # Validar STOCK antes de eliminar
+        # Necesitamos cargar el objeto real para ver la cantidad actual exacta
+        success_stock, ing_obj, _ = self.controller.obtener_ingrediente(ingrediente_id)
+        
+        if success_stock and ing_obj and ing_obj.cantidad > 0:
+            DialogUtils.mostrar_error(
+                "No se puede eliminar",
+                f"El producto '{ing_obj.nombre}' tiene stock activo ({ing_obj.cantidad} {ing_obj.unidad}).\n\n"
+                "Por seguridad, el sistema no permite eliminar productos con existencia.\n"
+                "Debes dejar el stock en 0 antes de borrarlo definitivamente."
+            )
+            return
+
+        # El nombre suele estar en la posición 1 de la tupla de datos visible o completa
+        # self.ingrediente_seleccionado contiene todos los campos (id, nombre, ...)
+        nombre = self.ingrediente_seleccionado[1]
+        
+        confirmacion = DialogUtils.pedir_confirmacion(
+            "Confirmar Eliminación",
+            f"¿Estás seguro de que deseas eliminar '{nombre}'?\n\nEsta acción no se puede deshacer."
+        )
+        
+        if confirmacion:
+            success, _, msg = self.controller.eliminar_ingrediente(ingrediente_id)
+            if success:
+                DialogUtils.mostrar_exito("Eliminado", f"El producto '{nombre}' ha sido eliminado correctamente.")
+                self.refrescar_tablas()
+            else:
+                DialogUtils.mostrar_error("Error", f"No se pudo eliminar: {msg}")
 
     def editar_ingrediente(self):
         print("Seleccionado:", self.ingrediente_seleccionado)

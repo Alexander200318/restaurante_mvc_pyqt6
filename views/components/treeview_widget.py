@@ -48,37 +48,68 @@ class TreeViewWidget(ctk.CTkFrame):
         except:
             pass
         
-        # Colores personalizados (TEMA CLARO / BLANCO)
+        # TEMA "PREMIUM DATA GRID"
         primary_color = config.COLORS["primary"]
-        bg_color = "#FFFFFF" # Fondo BLANCO puro
-        text_color = "#1F2937" # Texto oscuro para contraste
-        row_alt_color = "#F3F4F6" # Gris muy muy claro para alternar
-        
+        bg_color = "#FFFFFF" 
+        text_color = "#334155" # Slate-700 (Gris oscuro profesional)
+        row_alt_color = "#F8FAFC" # Slate-50 (Zebra stripes muy sutiles)
+        header_bg = "#F1F5F9" # Slate-100 (Diferenciar header del contenido)
+        header_fg = "#475569" # Slate-600 (Texto header)
+
         # Configurar Estilo de Tabla
         style.configure(
             self.style_name,
             background=bg_color,
             foreground=text_color,
-            fieldbackground=bg_color,
-            rowheight=self.row_height,
-            font=("Segoe UI", self.font_size),
+            fieldbackground=bg_color, # Fondo cuando no hay filas
+            rowheight=45, # Altura generosa para aspecto moderno
+            font=("Segoe UI", 13), # Letra un poco más grande y legible
             borderwidth=0
         )
         
-        # Configurar Estilo de Cabecera (Gris claro elegante)
+        # Configurar Estilo de Cabecera
         style.configure(
             f"{self.style_name}.Heading",
-            background="#E5E7EB", # Gris suave encabezado
-            foreground="#111827", # Texto oscuro encabezado
-            relief="flat",
-            font=("Segoe UI", self.heading_font_size, "bold")
+            background=header_bg,
+            foreground=header_fg,
+            relief="flat", # Flat style
+            borderwidth=0,
+            font=("Segoe UI Semibold", 12) # Semibold para headers
         )
         
-        # Mapa de colores para selección
+        # Configurar estado Hover y Selección en Cabecera
+        style.map(
+            f"{self.style_name}.Heading",
+            background=[('active', '#E2E8F0')], # Slate-200 al pasar mouse
+        )
+
+        # Mapa de colores para las FILAS (Selección)
         style.map(
             self.style_name,
-            background=[('selected', primary_color)], # Naranja al seleccionar
-            foreground=[('selected', 'white')] # Texto blanco al seleccionar
+            background=[('selected', '#FDBA74')], # Orange-300 (Selección suave)
+            foreground=[('selected', '#7C2D12')]  # Texto oscuro sobre fondo claro (Accesibilidad)
+        )
+        
+        # Layout hack para remover bordes e indicadores extraños
+        style.layout(f"{self.style_name}.Heading", [
+            ("Treeheading.cell", {'sticky': 'nswe'}),
+            ("Treeheading.border", {'sticky': 'nswe', 'children': [
+                ("Treeheading.padding", {'sticky': 'nswe', 'children': [
+                    ("Treeheading.image", {'side': 'right', 'sticky': ''}),
+                    ("Treeheading.text", {'sticky': 'we'}) 
+                ]})
+            ]})
+        ])
+        
+        # Configurar padding via configure y texto
+        style.configure(
+            f"{self.style_name}.Heading",
+            font=("Segoe UI Variable Display Semib", 11),
+            background="#F1F5F9",  # Slate-100 para headers
+            foreground="#64748B",  # Slate-500 texto secundario
+            borderwidth=0,         # Flat design
+            relief="flat",
+            padding=(10, 10)       # Padding interno (left, top, right, bottom)
         )
 
         # Frame con scrollbar
@@ -115,13 +146,29 @@ class TreeViewWidget(ctk.CTkFrame):
         
         # Grid
         self.arbol.grid(row=0, column=0, sticky="nsew")
+        
+        # Scrollbars minimalistas (si es posible, sino default)
+        vsb = ttk.Scrollbar(frame_tabla, orient="vertical", command=self.arbol.yview)
+        # vsb.grid(row=0, column=1, sticky="ns") # Ocultamos el scrollbar vertical por ahora para diseño limpio si no es necesario, o lo hacemos thin
+        # Si quieres scrollbar, descomenta la linea de arriba
+        
+        # Opcional: Solo mostrar scrollbar si es necesario (requeriría lógica extra)
+        # Por ahora lo dejamos visible pero sutil
         vsb.grid(row=0, column=1, sticky="ns")
+
+        hsb = ttk.Scrollbar(frame_tabla, orient="horizontal", command=self.arbol.xview)
         hsb.grid(row=1, column=0, sticky="ew")
         
+        self.arbol.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
         frame_tabla.grid_rowconfigure(0, weight=1)
         frame_tabla.grid_columnconfigure(0, weight=1)
         
-        # Bindings
+        # Configurar tags para filas alternas (Zebra Stripes)
+        self.arbol.tag_configure('impar', background=bg_color)
+        self.arbol.tag_configure('par', background=row_alt_color) # Usa el color definido arriba checkeado
+        
+        # Configurar columnas
         self.arbol.bind('<<TreeviewSelect>>', self._on_select)
         self.arbol.bind('<Double-Button-1>', self._on_double_click)
     
@@ -144,13 +191,17 @@ class TreeViewWidget(ctk.CTkFrame):
                 self.on_doble_click(datos)
     
 
-    def agregar_fila(self, datos: Tuple, datos_ocultos=None):
+    def agregar_fila(self, datos: Tuple, datos_ocultos=None, id_datos=None):
         """
         Agrega una fila
         datos: Tupla con los datos VISIBLES para las columnas
         datos_ocultos: (Opcional) El objeto completo o ID que se recupera al seleccionar
                        Si es None, se usa 'datos' como el objeto de retorno.
         """
+        # Alias id_datos = datos_ocultos para compatibilidad
+        if id_datos is not None and datos_ocultos is None:
+            datos_ocultos = id_datos
+
         # Asegurar longitud correcta para display
         datos_formateados = list(datos)[:len(self.columnas)]
         while len(datos_formateados) < len(self.columnas):

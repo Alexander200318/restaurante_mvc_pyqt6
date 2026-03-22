@@ -163,7 +163,10 @@ class FormDialog(ctk.CTkToplevel):
             tipo = config.get('type', 'text')
             valor_inicial = config.get('value', '')
             
-            if tipo == 'text' or tipo == 'number':
+            # Tipos de entrada de texto standard
+            tipos_entrada = ['text', 'number', 'email', 'phone']
+            
+            if tipo in tipos_entrada:
                 widget = ctk.CTkEntry(
                     frame, 
                     placeholder_text=f"Ingrese {label_text.lower()}",
@@ -276,15 +279,20 @@ class FormDialog(ctk.CTkToplevel):
 
         for nombre, widget in self.widgets.items():
             config = self.campos[nombre]
-            tipo = config.get('type', 'text')
-            label = config.get('label', nombre)
-            es_requerido = config.get('required', False)
-            min_val = config.get('min', None)
             
+            # --- CONFIGURACIONES ---
+            tipo       = config.get('type', 'text')
+            label      = config.get('label', nombre)
+            es_requerido = config.get('required', False)
+            min_val    = config.get('min', None)
+            regex_pat  = config.get('regex', None) # Patrón personalizado
+            regex_msg  = config.get('regex_msg', "⚠ Formato inválido") # Mensaje personalizado
+            
+            widget = self.widgets[nombre]
             error_msg = "" # Mensaje específico para este campo
 
             try:
-                # Obtener valor crudo
+                # --- OBTENER VALOR ---
                 if tipo == 'textarea':
                     valor_raw = widget.get("1.0", "end-1c")
                 else:
@@ -292,41 +300,76 @@ class FormDialog(ctk.CTkToplevel):
                 
                 valor_str = valor_raw.strip() if valor_raw else ""
                 
-                # A. Validación: REQUERIDO (Aplica a texto, numero, dropdown...)
+                # --- VALIDACIONES ---
+                
+                # A. REQUERIDO: Si está vacío y es requerido
                 if es_requerido and not valor_str:
-                    error_msg = "⚠ Campo obligatorio"
+                    error_msg = "⚠ Este campo es obligatorio"
 
-                # B. Validación: CARACTERES PROHIBIDOS (Solo para texto)
-                elif tipo == 'text' and any(c in valor_str for c in ["<", ">", "{", "}", "[", "]", "*", ";"]):
-                    error_msg = "⚠ No se permiten: < > { } [ ] * ;"
+                # B. REGEX / FORMATO (Solo si hay valor)
+                elif valor_str:
+                    import re
+                    # B.1 Regex personalizado
+                    if regex_pat and not re.match(regex_pat, valor_str):
+                        error_msg = regex_msg
+                        
+                    # B.2 Tipo EMAIL (Regex común)
+                    elif tipo == 'email':
+                        patron_email = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+                        if not re.match(patron_email, valor_str):
+                            error_msg = "⚠ Correo inválido (ej: usuario@mail.com)"
+                            
+                    # B.3 Tipo TELÉFONO (Solo dígitos y guiones/espacios básico)
+                    elif tipo == 'phone':
+                        # Permitir: +51 999 999 999, 999-999-999, (01) 234 5678
+                        # Simplificamos: que tenga al menos 7 dígitos
+                        digitos = re.sub(r'\D', '', valor_str)
+                        if len(digitos) < 7:
+                            error_msg = "⚠ Teléfono inválido (mínimo 7 dígitos)"
+
+                # C. CARACTERES PROHIBIDOS (Seguridad básica)
+                if not error_msg and tipo == 'text':
+                     if any(c in valor_str for c in ["<", ">", "{", "}", ";"]):
+                        error_msg = "⚠ Caracteres prohibidos: < > { } ;"
                 
-                # C. Validación: TIPO NÚMERO
-                elif tipo == 'number':
-                    if valor_str:
-                        try:
-                            valor = float(valor_str)
-                            # C.1 Validación: Mínimo
-                            if min_val is not None and valor < min_val:
-                                error_msg = f"⚠ Debe ser mayor o igual a {min_val}"
-                            # C.2 Validación: Máximo razonable (opcional)
-                            elif valor > 999999:
-                                error_msg = "⚠ Número demasiado grande"
-                        except ValueError:
-                             error_msg = "⚠ Debe ser un número válido"
-                    # Si es vacío y NO es requerido, pasa. Si es vacío y ES requerido, ya cayó en A.
+                # D. TIPO NÚMERO
+                if not error_msg and tipo == 'number':
+                    try:
+                        valor = float(valor_str)
+                        if min_val is not None and valor < min_val:
+                            error_msg = f"⚠ Mínimo permitido: {min_val}"
+                    except ValueError:
+                         error_msg = "⚠ Debe ser un número válido"
+
+                # E. Validaciones específicas desde controlador (si existen en config)
+                if not error_msg and 'validator' in config and callable(config['validator']):
+                    try:
+                        res = config['validator'](valor_str)
+                        if res is not True: # Retorna True si ok, string si error
+                            error_msg = f"⚠ {str(res)}"
+                    except:
+                        pass
                 
-                # Si hubo error en este campo
+                # --- APLICAR RESULTADO ---
                 if error_msg:
                     self.error_labels[nombre].configure(text=error_msg)
                     try:
-                        widget.configure(border_color="#DC2626") # Borde rojo fuerte
+                        widget.configure(border_color="#EF4444") # Rojo error
                     except: pass
                     error_general = True
-                    # No continue, validamos todo
-                
-                # Si pasa validación, guardamos el valor limpio
+                else:
+                    # Limpiar error visual
+                    self.error_labels[nombre].configure(text="")
+                    try:
+                        widget.configure(border_color="#D1D5DB") # Gris normal
+                    except: pass
+
+                # GUARDAR VALOR LIMPIO
                 if tipo == 'number':
-                    self.valores[nombre] = float(valor_str) if valor_str else 0.0
+                    try:
+                        self.valores[nombre] = float(valor_str) if valor_str else 0.0
+                    except:
+                        self.valores[nombre] = 0.0
                 else:
                     self.valores[nombre] = valor_str
                 
@@ -336,8 +379,32 @@ class FormDialog(ctk.CTkToplevel):
                 error_general = True
 
         if not error_general:
-            self.on_submit(self.valores)
-            self.destroy()
+            # Ejecutar lógica del controlador
+            try:
+                # El callback puede devolver:
+                # 1. Un dict {campo: msg} si hubo error lógico
+                # 2. None o True si tuvo éxito
+                # 3. False si falló genericamente
+                resultado = self.on_submit(self.valores)
+                
+                if isinstance(resultado, dict) and resultado:
+                    # Caso 1: Errores específicos desde backend
+                    for campo, msg in resultado.items():
+                        if campo in self.error_labels:
+                            self.error_labels[campo].configure(text=str(msg))
+                            self.widgets[campo].configure(border_color="#EF4444")
+                    # MANTENER DIÁLOGO ABIERTO
+                elif resultado is False:
+                     # Caso 3: Fallo genérico (el callback ya debió mostrar el error)
+                     pass
+                else:
+                    # Caso 2: Éxito
+                    self.destroy()
+
+            except Exception as e:
+                 DialogUtils.mostrar_error("Error", f"Ocurrió un error al procesar: {e}")
+                 # No cerramos el diálogo para no perder datos
+
 
 
 class PlatoActionDialog(ctk.CTkToplevel):

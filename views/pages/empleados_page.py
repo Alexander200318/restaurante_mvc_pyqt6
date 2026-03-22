@@ -23,228 +23,419 @@ class EmpleadosPage(ctk.CTkFrame):
         self.label_info_salario = None
         self.label_info_estado = None
         
+        # Estado de Paginación
+        self.pagina_actual = 1
+        self.registros_por_pagina = 20
+        self.total_paginas = 1
+        self.todos_los_datos = []
+        
         self._crear_ui()
         self.refrescar_tabla()
     
     def _crear_ui(self):
-        """Crear interfaz con diseño mejorado - Colores naranjas"""
-        # Header
-        frame_header = ctk.CTkFrame(self, fg_color="#EA580C", height=80)
+        """Crear interfaz con diseño ULTRA moderno y refinado"""
+        
+        # --- HEADER PRINCIPAL (Estilo Flat moderno) ---
+        self.header_bg = config.COLORS["primary"]
+        
+        frame_header = ctk.CTkFrame(
+            self, 
+            fg_color=self.header_bg,
+            corner_radius=0, 
+            height=85
+        )
         frame_header.pack(fill="x", padx=0, pady=0)
-        frame_header.pack_propagate(False)
         
-        # Título
+        # Contenedor interno del header
+        header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
+        header_content.pack(fill="x", padx=40, pady=25)
+        
+        # Título con tipografía elegante
         titulo = ctk.CTkLabel(
-            frame_header,
-            text="👥 Gestión de Empleados",
-            text_color="#ffffff",
-            font=("Helvetica", 20, "bold")
+            header_content,
+            text="GESTIÓN DE TALENTO HUMANO",
+            text_color="#FFFFFF",
+            font=("Segoe UI Display", 26, "bold")
         )
-        titulo.pack(side="left", padx=15, pady=15)
+        titulo.pack(side="left")
         
-        # Botón nuevo
+        # Subtítulo pequeño o breadcrumb
+        subtitulo = ctk.CTkLabel(
+            header_content,
+            text=" / Directorio Activo",
+            text_color="#FEF3C7", # Amarillo muy claro
+            font=("Segoe UI", 16)
+        )
+        subtitulo.pack(side="left", pady=(8,0), padx=5)
+
+        # --- CONTENIDO PRINCIPAL ---
+        # Fondo general más limpio
+        self.contenido = ctk.CTkFrame(self, fg_color="#F8FAFC") # Slate-50 background
+        self.contenido.pack(fill="both", expand=True)
+        
+        # Layout de dos columnas con espaciado generoso
+        frame_layout = ctk.CTkFrame(self.contenido, fg_color="transparent")
+        frame_layout.pack(fill="both", expand=True, padx=40, pady=30)
+        
+        # 1. COLUMNA IZQUIERDA: DIRECTORIO (Flexible)
+        col_izquierda = ctk.CTkFrame(frame_layout, fg_color="transparent")
+        col_izquierda.pack(side="left", fill="both", expand=True, padx=(0, 25))
+        
+        # Barra de Acciones (Floating style)
+        acciones_frame = ctk.CTkFrame(col_izquierda, fg_color="transparent", height=50)
+        acciones_frame.pack(fill="x", pady=(0, 20))
+        
+        # Stats rápidas (Simuladas visualmente por ahora)
+        filtros_frame = ctk.CTkFrame(acciones_frame, fg_color="white", corner_radius=20, border_width=1, border_color="#E2E8F0")
+        filtros_frame.pack(side="left", fill="y")
+        
+        ctk.CTkLabel(filtros_frame, text="🔍", font=("Segoe UI", 14), text_color="#64748B").pack(side="left", padx=(15, 5))
+        ctk.CTkEntry(
+            filtros_frame, 
+            placeholder_text="Buscar empleado...", 
+            border_width=0, 
+            fg_color="transparent",
+            width=200,
+            text_color="#334155",
+            font=("Segoe UI", 13)
+        ).pack(side="left", padx=(0, 15), pady=5)
+
+        # Botón Nuevo (Gradiante visual o color sólido fuerte)
         btn_nuevo = ctk.CTkButton(
-            frame_header,
-            text="➕ Nuevo Empleado",
+            acciones_frame,
+            text="＋ NUEVO CONTRATO",
             command=self.crear_empleado,
-            fg_color="#ff8c42",
-            hover_color="#ff7724",
+            fg_color="#10B981", # Emerald-500
+            hover_color="#059669", # Emerald-600
             text_color="white",
-            font=("Helvetica", 12, "bold")
+            font=("Segoe UI", 12, "bold"),
+            height=42,
+            corner_radius=21, # Pill shape
+            width=180
         )
-        btn_nuevo.pack(side="right", padx=15, pady=15)
+        btn_nuevo.pack(side="right")
         
-        # Separador
-        sep = ctk.CTkFrame(self, fg_color="#ffc9a1", height=1)
-        sep.pack(fill="x", padx=0, pady=0)
-        
-        # Contenedor principal (tabla + panel)
-        contenido = ctk.CTkFrame(self, fg_color="#fffaf5")
-        contenido.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Frame tabla (izquierda)
-        frame_tabla = ctk.CTkFrame(contenido, fg_color="transparent")
-        frame_tabla.pack(side="left", fill="both", expand=True, padx=(0, 10))
-        
-        # Label tabla
-        lbl_tabla = ctk.CTkLabel(
-            frame_tabla,
-            text="📋 Empleados",
-            text_color="#EA580C",
-            font=("Helvetica", 13, "bold")
+        # Tabla Containers (Elevated Card)
+        card_tabla = ctk.CTkFrame(
+            col_izquierda, 
+            fg_color="white", 
+            corner_radius=16,
+            border_width=0, # Sin borde, solo sombra (no soportada nativamente, simulamos con contraste)
         )
-        lbl_tabla.pack(anchor="w", padx=5, pady=(0, 5))
+        card_tabla.pack(fill="both", expand=True)
+        
+        # Linea decorativa top tabla
+        ctk.CTkFrame(card_tabla, height=4, fg_color=config.COLORS["primary"], corner_radius=2).pack(fill="x")
+
+        # --- Controles de Paginación (Al pie) ---
+        self.frame_paginacion = ctk.CTkFrame(card_tabla, fg_color="transparent", height=40)
+        self.frame_paginacion.pack(side="bottom", fill="x", padx=10, pady=10)
+        
+        self.btn_anterior = ctk.CTkButton(
+            self.frame_paginacion,
+            text="◀ Anterior",
+            width=90,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#F1F5F9",
+            text_color="#64748B",
+            hover_color="#E2E8F0",
+            state="disabled",
+            command=self._pagina_anterior
+        )
+        self.btn_anterior.pack(side="left")
+        
+        self.lbl_paginacion = ctk.CTkLabel(
+            self.frame_paginacion,
+            text="Página 1 de 1",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#64748B"
+        )
+        self.lbl_paginacion.pack(side="left", expand=True)
+
+        self.btn_siguiente = ctk.CTkButton(
+            self.frame_paginacion,
+            text="Siguiente ▶",
+            width=90,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#F1F5F9",
+            text_color="#64748B",
+            hover_color="#E2E8F0",
+            state="disabled",
+            command=self._pagina_siguiente
+        )
+        self.btn_siguiente.pack(side="right")
         
         # Tabla
         self.tabla = TreeViewWidget(
-            frame_tabla,
-            columnas=["ID", "Nombre", "Puesto", "Teléfono", "Email", "Salario", "Estado"],
-            altura=20,
-            font_size=11,
-            heading_font_size=11,
-            row_height=30
+            card_tabla,
+            columnas=["Nombre Completo", "Cargo", "Teléfono", "Email Corporativo", "Salario Base", "Estado"],
+            altura=15, # Ajustado para asegurar visibilidad en pantalla
+            font_size=13, # Texto más grande
+            heading_font_size=12,
+            row_height=40 # Filas aireadas pero manejables
         )
-        self.tabla.pack(fill="both", expand=True)
+        self.tabla.pack(fill="both", expand=True, padx=10, pady=(10, 5))
         self.tabla.set_on_select(self._on_empleado_select)
+        # -------------------------------
         
-        # Panel información (derecha)
-        self._crear_panel_informacion(contenido)
-    
-    def _crear_panel_informacion(self, parent):
-        """Crear panel lateral con información del empleado - Colores naranjas"""
-        panel = ctk.CTkFrame(parent, fg_color="#ffffff", width=320, corner_radius=10)
-        panel.pack(side="right", fill="y", padx=10, pady=10)
-        panel.pack_propagate(False)
-        
-        # Header del panel con color naranja claro
-        header_panel = ctk.CTkFrame(panel, fg_color="#ffebdb", corner_radius=10, height=50)
-        header_panel.pack(fill="x", padx=0, pady=0)
-        header_panel.pack_propagate(False)
-        
-        lbl_header = ctk.CTkLabel(
-            header_panel,
-            text="👤 Detalles del Empleado",
-            text_color="#EA580C",
-            font=("Helvetica", 12, "bold")
+        # 2. COLUMNA DERECHA: PERFIL (Fijo)
+        self.panel_perfil = ctk.CTkFrame(
+            frame_layout, 
+            fg_color="white", 
+            width=380, # Panel más ancho
+            corner_radius=20
         )
-        lbl_header.pack(pady=12)
+        self.panel_perfil.pack(side="right", fill="y", padx=0, pady=0)
+        self.panel_perfil.pack_propagate(False)
         
-        # Contenedor scrollable para información
-        frame_scroll = ctk.CTkScrollableFrame(panel, fg_color="#ffffff")
-        frame_scroll.pack(fill="both", expand=True, padx=12, pady=12)
+        self._construir_perfil_ui()
+
+    def _construir_perfil_ui(self):
+        """Construye el panel derecho de perfil COMPACTO"""
         
-        # Frame para datos del empleado con tarjetas
-        self.frame_datos = ctk.CTkFrame(frame_scroll, fg_color="transparent")
-        self.frame_datos.pack(fill="x", padx=0, pady=0)
+        # Header Perfil (Más compacto)
+        header_perfil = ctk.CTkFrame(self.panel_perfil, fg_color="#F1F5F9", height=90, corner_radius=15)
+        header_perfil.pack(fill="x", padx=10, pady=10)
+        header_perfil.pack_propagate(False) # Mantener altura fija
         
-        # Labels para información (se actualizarán dinámicamente)
-        self.label_info_nombre = self._crear_card_info(self.frame_datos, "👤 Nombre", "-")
-        self.label_info_puesto = self._crear_card_info(self.frame_datos, "💼 Puesto", "-")
-        self.label_info_telefono = self._crear_card_info(self.frame_datos, "📱 Teléfono", "-")
-        self.label_info_email = self._crear_card_info(self.frame_datos, "📧 Email", "-")
-        self.label_info_salario = self._crear_card_info(self.frame_datos, "💰 Salario", "-")
-        self.label_info_estado = self._crear_card_info(self.frame_datos, "🔖 Estado", "-")
+        # Avatar Flotante (Más pequeño)
+        self.avatar_frame = ctk.CTkFrame(header_perfil, width=60, height=60, corner_radius=30, fg_color="white")
+        self.avatar_frame.place(relx=0.5, rely=0.5, anchor="center")
         
-        # Separador visual
-        sep = ctk.CTkFrame(frame_scroll, fg_color="#EA580C", height=1)
-        sep.pack(fill="x", padx=0, pady=15)
+        self.lbl_avatar_emoji = ctk.CTkLabel(self.avatar_frame, text="👤", font=("Segoe UI", 30))
+        self.lbl_avatar_emoji.place(relx=0.5, rely=0.5, anchor="center")
         
-        # Botones de acción con mejor diseño
-        frame_botones = ctk.CTkFrame(frame_scroll, fg_color="transparent")
-        frame_botones.pack(fill="x", padx=0, pady=10)
+        # Nombre y Cargo (Menos espacio vertical)
+        frame_info_header = ctk.CTkFrame(self.panel_perfil, fg_color="transparent")
+        frame_info_header.pack(fill="x", pady=(5, 5))
         
-        btn_editar = ctk.CTkButton(
-            frame_botones,
-            text="✏️ Editar",
+        self.lbl_nombre_perfil = ctk.CTkLabel(
+            frame_info_header,
+            text="Seleccione Empleado",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#1E293B"
+        )
+        self.lbl_nombre_perfil.pack(pady=(0, 0))
+        
+        self.lbl_cargo_perfil = ctk.CTkLabel(
+            frame_info_header,
+            text="---",
+            font=("Segoe UI", 13),
+            text_color="#64748B"
+        )
+        self.lbl_cargo_perfil.pack(pady=(0, 5))
+        
+        # Badge Estado (Compacto)
+        self.badge_estado = ctk.CTkFrame(frame_info_header, fg_color="#E2E8F0", corner_radius=8, height=20)
+        self.badge_estado.pack()
+        self.lbl_estado_texto = ctk.CTkLabel(self.badge_estado, text="INACTIVO", font=("Segoe UI", 9, "bold"), text_color="#64748B")
+        self.lbl_estado_texto.pack(padx=8, pady=1)
+
+        # Detalles (Grid 2 columnas para ahorrar espacio)
+        self.info_container = ctk.CTkFrame(self.panel_perfil, fg_color="transparent")
+        self.info_container.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Fila 1: Teléfono y Email
+        self._crear_fila_doble("📱 Teléfono", "lbl_tel_val", "📧 Email", "lbl_email_val")
+        
+        # Separador sutil
+        ctk.CTkFrame(self.info_container, height=1, fg_color="#E2E8F0").pack(fill="x", pady=10)
+
+        # Fila 2: Salario y ID
+        self._crear_fila_doble("💰 Salario", "lbl_salario_val", "🆔 ID", "lbl_id_val")
+
+        # Espaciador flexible para empujar botones al fondo si sobra espacio
+        ctk.CTkLabel(self.panel_perfil, text="").pack(expand=True)
+
+        # Botones Pie (Compactos)
+        frame_btns = ctk.CTkFrame(self.panel_perfil, fg_color="transparent")
+        frame_btns.pack(fill="x", padx=20, pady=20, side="bottom")
+        
+        self.btn_editar = ctk.CTkButton(
+            frame_btns,
+            text="Editar Perfil",
             command=self.editar_empleado,
-            fg_color="#ff8c42",
-            hover_color="#ff7724",
-            text_color="white",
-            font=("Helvetica", 11, "bold"),
-            corner_radius=8
+            fg_color="#3B82F6", 
+            hover_color="#2563EB",
+            height=35, # Botón más delgado
+            corner_radius=8,
+            font=("Segoe UI", 12, "bold"),
+            state="disabled"
         )
-        btn_editar.pack(fill="x", pady=5)
+        self.btn_editar.pack(fill="x", pady=(0, 8))
         
-        btn_eliminar = ctk.CTkButton(
-            frame_botones,
-            text="🗑️ Eliminar Empleado",
+        self.btn_eliminar = ctk.CTkButton(
+            frame_btns,
+            text="Dar de Baja",
             command=self.eliminar_empleado,
-            fg_color="#ff6b6b",
-            hover_color="#ff5252",
-            text_color="white",
-            font=("Helvetica", 11, "bold"),
-            corner_radius=8
+            fg_color="#FEE2E2", # Rojo muy claro (Soft UI)
+            hover_color="#FCA5A5", # Rojo suave al pasar mouse
+            text_color="#B91C1C", # Rojo oscuro texto (Contrast 700)
+            height=35, 
+            corner_radius=8,
+            font=("Segoe UI", 12, "bold"),
+            state="disabled"
         )
-        btn_eliminar.pack(fill="x", pady=5)
+        self.btn_eliminar.pack(fill="x")
+        
+    def _crear_fila_doble(self, titulo1, attr1, titulo2, attr2):
+        """Crea una fila con dos columnas de datos"""
+        row = ctk.CTkFrame(self.info_container, fg_color="transparent")
+        row.pack(fill="x", pady=5)
+        
+        # Columna 1
+        col1 = ctk.CTkFrame(row, fg_color="transparent")
+        col1.pack(side="left", fill="x", expand=True)
+        
+        ctk.CTkLabel(col1, text=titulo1, font=("Segoe UI", 10, "bold"), text_color="#94A3B8", anchor="w").pack(fill="x")
+        lbl1 = ctk.CTkLabel(col1, text="---", font=("Segoe UI", 12), text_color="#334155", anchor="w")
+        lbl1.pack(fill="x")
+        setattr(self, attr1, lbl1)
+        
+        # Columna 2
+        col2 = ctk.CTkFrame(row, fg_color="transparent")
+        col2.pack(side="left", fill="x", expand=True, padx=(10, 0)) # Margen entre columnas
+        
+        ctk.CTkLabel(col2, text=titulo2, font=("Segoe UI", 10, "bold"), text_color="#94A3B8", anchor="w").pack(fill="x")
+        lbl2 = ctk.CTkLabel(col2, text="---", font=("Segoe UI", 12), text_color="#334155", anchor="w")
+        lbl2.pack(fill="x")
+        setattr(self, attr2, lbl2)
+
+    def _crear_fila_info(self, seccion, icono, label, attr_name):
+        # Deprecated
+        pass
+
+    def _crear_panel_informacion(self, parent):
+        # Deprecated
+        pass
+
+    def _crear_item_detalle(self, titulo):
+        # Deprecated logic kept safe
+        pass
     
     def _crear_card_info(self, parent, etiqueta, valor):
-        """Crear una tarjeta de información mejorada"""
-        card = ctk.CTkFrame(parent, fg_color="white", corner_radius=8)
-        card.pack(fill="x", pady=15)
-        
-        # Marco interno con padding
-        frame_contenido = ctk.CTkFrame(card, fg_color="white", corner_radius=8)
-        frame_contenido.pack(fill="x", padx=12, pady=10)
-        
-        # Etiqueta
-        lbl_etiqueta = ctk.CTkLabel(
-            frame_contenido,
-            text=etiqueta,
-            text_color="#EA580C",
-            font=("Helvetica", 9, "bold")
-        )
-        lbl_etiqueta.pack(anchor="w", pady=(0, 4))
-        
-        # Valor
-        lbl_valor = ctk.CTkLabel(
-            frame_contenido,
-            text=valor,
-            text_color="#ff9d5c",
-            font=("Helvetica", 11, "bold")
-        )
-        lbl_valor.pack(anchor="w")
-        
-        return lbl_valor
-    
-    def _on_empleado_select(self, datos):
-        """Callback cuando se selecciona un empleado"""
-        self.empleado_seleccionado = datos
-        self._actualizar_panel()
+        # Deprecated
+        pass
     
     def _actualizar_panel(self):
-        """Actualizar panel con información del empleado seleccionado"""
+        """Actualizar datos del perfil seleccionado"""
         if not self.empleado_seleccionado:
-            # Limpiar panel
-            self.label_info_nombre.configure(text="-", text_color="#ff9d5c")
-            self.label_info_puesto.configure(text="-", text_color="#ff9d5c")
-            self.label_info_telefono.configure(text="-", text_color="#ff9d5c")
-            self.label_info_email.configure(text="-", text_color="#ff9d5c")
-            self.label_info_salario.configure(text="-", text_color="#ff9d5c")
-            self.label_info_estado.configure(text="-", text_color="#ff9d5c")
+            self._reset_panel()
             return
         
+        # Activar controles
+        self.btn_editar.configure(state="normal", fg_color="#3B82F6")
+        self.btn_eliminar.configure(state="normal", text_color="#EF4444", border_color="#EF4444")
+        
         datos = self.empleado_seleccionado
-        # Extraer datos (orden según columnas: ID, Nombre, Puesto, Teléfono, Email, Salario, Estado)
-        id_emp = datos[0]
-        nombre = datos[1] if len(datos) > 1 else "-"
-        puesto = datos[2] if len(datos) > 2 else "-"
-        telefono = datos[3] if len(datos) > 3 else "-"
-        email = datos[4] if len(datos) > 4 else "-"
-        salario = datos[5] if len(datos) > 5 else "-"
-        estado = datos[6] if len(datos) > 6 else "-"
+        # [ID, Nombre, Puesto, Teléfono, Email, Salario, Estado]
         
-        # Actualizar labels
-        self.label_info_nombre.configure(text=str(nombre), text_color="#ff9d5c")
-        self.label_info_puesto.configure(text=str(puesto), text_color="#ff9d5c")
-        self.label_info_telefono.configure(text=str(telefono), text_color="#ff9d5c")
-        self.label_info_email.configure(text=str(email), text_color="#ff9d5c")
-        self.label_info_salario.configure(text=str(salario), text_color="#ff9d5c")
+        # Header Info
+        self.lbl_nombre_perfil.configure(text=str(datos[1]))
+        self.lbl_cargo_perfil.configure(text=str(datos[2]))
         
-        # Actualizar color de estado
-        color_estado = config.COLORS["success"] if estado.lower() == "activo" else config.COLORS["danger"]
-        self.label_info_estado.configure(text=str(estado), text_color=color_estado)
-    
+        # Estado Badge
+        estado_str = str(datos[6]).upper()
+        if estado_str == "ACTIVO":
+            self.badge_estado.configure(fg_color="#DCFCE7") # Green-100
+            self.lbl_estado_texto.configure(text="ACTIVO", text_color="#166534") # Green-800
+        else:
+            self.badge_estado.configure(fg_color="#FEE2E2") # Red-100
+            self.lbl_estado_texto.configure(text="INACTIVO", text_color="#991B1B") # Red-800
+            
+        # Detalles
+        self.lbl_tel_val.configure(text=str(datos[3]))
+        self.lbl_email_val.configure(text=str(datos[4]))
+        self.lbl_salario_val.configure(text=str(datos[5]))
+        self.lbl_id_val.configure(text=f"EMP-{str(datos[0]).zfill(4)}")
+
+    def _reset_panel(self):
+        self.lbl_nombre_perfil.configure(text="Seleccione Empleado")
+        self.lbl_cargo_perfil.configure(text="---")
+        self.badge_estado.configure(fg_color="#E2E8F0")
+        self.lbl_estado_texto.configure(text="---", text_color="#64748B")
+        
+        self.lbl_tel_val.configure(text="---")
+        self.lbl_email_val.configure(text="---")
+        self.lbl_salario_val.configure(text="---")
+        self.lbl_id_val.configure(text="---")
+        
+        self.btn_editar.configure(state="disabled", fg_color="#94A3B8")
+        self.btn_eliminar.configure(state="disabled", text_color="#94A3B8", border_color="#E2E8F0")
+
+    def _on_empleado_select(self, datos):
+        self.empleado_seleccionado = datos
+        self._actualizar_panel()
+
     def refrescar_tabla(self):
-        """Refrescar tabla de empleados"""
+        """Refrescar tabla de empleados con paginación"""
         success, datos, msg = self.controller.obtener_todos_empleados_formateados()
         if success:
-            self.tabla.limpiar()
-            for dato in datos:
-                self.tabla.agregar_fila(dato, id_datos=dato)
+            self.todos_los_datos = datos
+            # Calcular total páginas
+            import math
+            self.total_paginas = math.ceil(len(datos) / self.registros_por_pagina)
+            if self.total_paginas == 0: self.total_paginas = 1
+            
+            self.pagina_actual = 1
+            self._mostrar_pagina_actual()
+            
             self.empleado_seleccionado = None
             self._actualizar_panel()
         else:
             DialogUtils.mostrar_error("Error", msg)
+
+    def _mostrar_pagina_actual(self):
+        """Renderiza los datos de la página actual en la tabla"""
+        self.tabla.limpiar()
+        
+        inicio = (self.pagina_actual - 1) * self.registros_por_pagina
+        fin = inicio + self.registros_por_pagina
+        datos_slice = self.todos_los_datos[inicio:fin]
+        
+        for dato in datos_slice:
+            # Omitimos el primer elemento (ID) para la vista
+            self.tabla.agregar_fila(dato[1:], datos_ocultos=dato)
+            
+        self._actualizar_estado_paginacion()
+
+    def _actualizar_estado_paginacion(self):
+        """Actualiza label y botones de paginación"""
+        self.lbl_paginacion.configure(text=f"Página {self.pagina_actual} de {self.total_paginas}")
+        
+        # Estado botón Anterior
+        if self.pagina_actual > 1:
+            self.btn_anterior.configure(state="normal", fg_color="#3B82F6", text_color="white")
+        else:
+            self.btn_anterior.configure(state="disabled", fg_color="#F1F5F9", text_color="#94A3B8")
+            
+        # Estado botón Siguiente
+        if self.pagina_actual < self.total_paginas:
+            self.btn_siguiente.configure(state="normal", fg_color="#3B82F6", text_color="white")
+        else:
+            self.btn_siguiente.configure(state="disabled", fg_color="#F1F5F9", text_color="#94A3B8")
+
+    def _pagina_siguiente(self):
+        if self.pagina_actual < self.total_paginas:
+            self.pagina_actual += 1
+            self._mostrar_pagina_actual()
+
+    def _pagina_anterior(self):
+        if self.pagina_actual > 1:
+            self.pagina_actual -= 1
+            self._mostrar_pagina_actual()
     
     def crear_empleado(self):
         puestos = self.controller.obtener_puestos_disponibles()
         
         campos = {
-            'nombre': {'label': '👤 Nombre', 'type': 'text'},
-            'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos},
-            'telefono': {'label': '📱 Teléfono', 'type': 'text'},
-            'email': {'label': '📧 Email', 'type': 'text'},
-            'salario': {'label': '💰 Salario', 'type': 'number'}
+            'nombre': {'label': '👤 Nombre', 'type': 'text', 'required': True},
+            'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos, 'required': True},
+            'telefono': {'label': '📱 Teléfono', 'type': 'phone', 'required': True},
+            'email': {'label': '📧 Email', 'type': 'email', 'required': True},
+            'salario': {'label': '💰 Salario', 'type': 'number', 'required': True, 'min': 0}
         }
         
         def procesar(valores):
@@ -259,8 +450,21 @@ class EmpleadosPage(ctk.CTkFrame):
             if success:
                 DialogUtils.mostrar_exito("Éxito", "Empleado creado")
                 self.refrescar_tabla()
+                return True # Cerrar diálogo
             else:
+                # Si el error es de tipo específico (puesto, email, etc), lo devolvemos
+                # como un dict de errores para mostrar inline.
+                msg_lower = msg.lower() if msg else ""
+                
+                if "email" in msg_lower:
+                    return {'email': msg}
+                elif "telefono" in msg_lower:
+                    return {'telefono': msg}
+                elif "salario" in msg_lower:
+                    return {'salario': msg}
+                    
                 DialogUtils.mostrar_error("Error", msg)
+                return False # Mantener abierto
         
         FormDialog(self.winfo_toplevel(), "➕ Nuevo Empleado", campos, procesar)
     
@@ -280,7 +484,8 @@ class EmpleadosPage(ctk.CTkFrame):
         
         # Extraer número del formato "$xxxx.xx"
         try:
-            salario_num = float(salario_str.replace("$", "").replace(",", "").strip()) if salario_str and salario_str != "—" else ""
+            salario_str = str(salario_str).replace("$", "").replace(",", "").strip()
+            salario_num = float(salario_str) if salario_str and salario_str != "—" else ""
         except ValueError:
             salario_num = ""
         
@@ -288,12 +493,12 @@ class EmpleadosPage(ctk.CTkFrame):
         estados = ["ACTIVO", "INACTIVO"]
         
         campos = {
-            'nombre': {'label': '👤 Nombre', 'type': 'text', 'value': nombre},
-            'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos, 'value': puesto},
-            'telefono': {'label': '📱 Teléfono', 'type': 'text', 'value': telefono},
-            'email': {'label': '📧 Email', 'type': 'text', 'value': email},
-            'salario': {'label': '💰 Salario', 'type': 'number', 'value': salario_num},
-            'estado': {'label': '🔖 Estado', 'type': 'dropdown', 'options': estados, 'value': estado}
+            'nombre': {'label': '👤 Nombre', 'type': 'text', 'value': nombre, 'required': True},
+            'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos, 'value': puesto, 'required': True},
+            'telefono': {'label': '📱 Teléfono', 'type': 'phone', 'value': telefono, 'required': True},
+            'email': {'label': '📧 Email', 'type': 'email', 'value': email, 'required': True},
+            'salario': {'label': '💰 Salario', 'type': 'number', 'value': salario_num, 'required': True, 'min': 0},
+            'estado': {'label': '🔖 Estado', 'type': 'dropdown', 'options': estados, 'value': estado, 'required': True}
         }
         
         def procesar(valores):
@@ -308,8 +513,12 @@ class EmpleadosPage(ctk.CTkFrame):
             )
             
             if not success:
+                msg_lower = msg.lower() if msg else ""
+                if "email" in msg_lower: return {'email': msg}
+                if "telefono" in msg_lower: return {'telefono': msg}
+                
                 DialogUtils.mostrar_error("Error", msg)
-                return
+                return False
             
             # Actualizar estado si cambió
             if valores.get('estado') and valores.get('estado') != estado:
@@ -319,10 +528,11 @@ class EmpleadosPage(ctk.CTkFrame):
                 )
                 if not success_estado:
                     DialogUtils.mostrar_error("Error al actualizar estado", msg_estado)
-                    return
+                    return False
             
             DialogUtils.mostrar_exito("Éxito", "Empleado actualizado")
             self.refrescar_tabla()
+            return True
         
         FormDialog(self.winfo_toplevel(), "✏️ Editar Empleado", campos, procesar)
     

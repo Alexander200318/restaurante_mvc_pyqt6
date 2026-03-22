@@ -462,7 +462,7 @@ Ingredientes: {len(plato.ingredientes)}
             self.tabla.limpiar()
             # Agregar filas guardando los datos completos para poder accederlos cuando se selecciona
             for dato in datos:
-                self.tabla.agregar_fila(dato, id_datos=dato)
+                self.tabla.agregar_fila(dato, datos_ocultos=dato)
         else:
             DialogUtils.mostrar_error("Error", msg)
     
