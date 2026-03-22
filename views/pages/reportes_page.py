@@ -12,7 +12,7 @@ class ReportesPage(ctk.CTkFrame):
     """Módulo de Reportes"""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, fg_color=config.COLORS["light_bg"], **kwargs)
         
         self.controller_pagos = PagosController()
         self.controller_pedidos = PedidosController()
@@ -21,8 +21,9 @@ class ReportesPage(ctk.CTkFrame):
     
     def _crear_ui(self):
         """Crear interfaz"""
-        frame_header = ctk.CTkFrame(self, fg_color=config.COLORS["primary"])
-        frame_header.pack(fill="x", padx=10, pady=10)
+        frame_header = ctk.CTkFrame(self, fg_color=config.COLORS["primary"], height=80)
+        frame_header.pack(side="top", fill="x", padx=0, pady=0)
+        frame_header.pack_propagate(False)
         
         titulo = ctk.CTkLabel(
             frame_header,

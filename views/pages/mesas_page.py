@@ -6,7 +6,7 @@ from controllers.mesas_controller import MesasController
 from controllers.clientes_controller import ClientesController
 from views.components.dialog_utils import DialogUtils
 import config
-
+import datetime 
 class MesasPage(ctk.CTkFrame):
     """Módulo de Mesas con Grid Visual"""
     
@@ -19,9 +19,51 @@ class MesasPage(ctk.CTkFrame):
         self.grid_frame = None
         self.mesa_cards = {}
         
+        # Diccionario para almacenar el pedido activo de cada mesa
+        self.mesa_pedido_actual = {}
+        
+        # Crear cliente genérico global al inicio
+        self.cliente_generico = self._crear_cliente_generico_global()
+        
         self._crear_ui()
         self.refrescar_tabla()
-    
+
+    def _crear_cliente_generico_global(self):
+        """Crear un cliente genérico global para todos los pedidos"""
+        from controllers.clientes_controller import ClientesController
+        
+        controller_clientes = ClientesController()
+        
+        try:
+            # Buscar si ya existe
+            success, clientes, _ = controller_clientes.obtener_todos_clientes()
+            if success and clientes:
+                for cliente in clientes:
+                    if hasattr(cliente, 'nombre') and cliente.nombre == "CLIENTE_GENERICO":
+                        print(f"✓ Cliente genérico ya existe: ID {cliente.id}")
+                        return cliente
+            
+            # Crear cliente genérico
+            print("📝 Creando cliente genérico...")
+            success, nuevo_cliente, msg = controller_clientes.crear_cliente(
+                cedula="9999999999",
+                nombre="CLIENTE_GENERICO",
+                apellido="Sistema",
+                telefono="0000000000",
+                direccion="Pedidos sin cliente",
+                correo="sistema@restaurante.com"
+            )
+            
+            if success:
+                print(f"✓ Cliente genérico creado: ID {nuevo_cliente.id}")
+                return nuevo_cliente
+            else:
+                print(f"❌ Error al crear cliente genérico: {msg}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error en _crear_cliente_generico_global: {e}")
+            return None
     def _crear_ui(self):
         """Crear interfaz"""
         # === HEADER ===
@@ -430,15 +472,18 @@ class MesasPage(ctk.CTkFrame):
             btn_liberar.pack(fill="x", pady=10)
     
     def _liberar_mesa(self, mesa, dialog):
-        """Liberar una mesa"""
+        """Liberar una mesa - solo cambiar estado, mantener cliente genérico"""
         success, _, msg = self.controller.liberar_mesa(mesa.id)
         if success:
+            # Limpiar referencia local del pedido
+            if hasattr(self, 'mesa_pedido_actual') and mesa.id in self.mesa_pedido_actual:
+                del self.mesa_pedido_actual[mesa.id]
+            
             DialogUtils.mostrar_exito("Éxito", "Mesa liberada correctamente")
             dialog.destroy()
             self.refrescar_tabla()
         else:
             DialogUtils.mostrar_error("Error", msg)
-    
     def _mostrar_nuevo_pedido(self, mesa):
         """Mostrar dialog con sistema completo de nuevo pedido (React-like)"""
         from controllers.empleados_controller import EmpleadosController
@@ -935,13 +980,10 @@ class MesasPage(ctk.CTkFrame):
             del carrito_items[plato_id]
         
         self._actualizar_carrito_visual(carrito_items)
-    
-    
-        
+  
     def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
-        """Procesar y crear el nuevo pedido"""
+        """Procesar y crear el nuevo pedido - Usando cliente genérico global"""
         from controllers.pedidos_controller import PedidosController
-        from controllers.clientes_controller import ClientesController
         
         # Validaciones
         if not combo_mesero.get() or combo_mesero.get() == "No hay meseros":
@@ -959,33 +1001,16 @@ class MesasPage(ctk.CTkFrame):
             DialogUtils.mostrar_error("Error", "Mesero no válido")
             return
         
+        # Verificar que existe el cliente genérico
+        if not self.cliente_generico:
+            DialogUtils.mostrar_error("Error", "No se pudo crear el cliente genérico")
+            return
+        
         try:
-            # Crear cliente primero (SIN pasar mesa_id)
-            controller_clientes = ClientesController()
-            success, cliente, msg = controller_clientes.crear_cliente(
-                cedula=f"MESA_{mesa.numero}",  # Identificador único
-                nombre=f"Mesa {mesa.numero}",   # Nombre del cliente
-                apellido="Cliente",             # Apellido por defecto
-                telefono=None,
-                direccion=None,
-                correo=None
-            )
-            
-            if not success:
-                DialogUtils.mostrar_error("Error", f"Error al crear cliente: {msg}")
-                return
-            
-            # Asignar el cliente a la mesa usando el controlador de mesas
-            success, _, msg = self.controller.asignar_cliente_mesa(mesa.id, cliente.id)
-            
-            if not success:
-                DialogUtils.mostrar_error("Error", f"Error al asignar cliente a mesa: {msg}")
-                return
-            
-            # Crear pedido
+            # Crear pedido con el cliente genérico global
             controller_pedidos = PedidosController()
             success, pedido, msg = controller_pedidos.crear_pedido(
-                cliente_id=cliente.id,
+                cliente_id=self.cliente_generico.id,  # Usar el cliente genérico
                 mesa_id=mesa.id,
                 empleado_id=mesero.id
             )
@@ -1013,7 +1038,12 @@ class MesasPage(ctk.CTkFrame):
                 DialogUtils.mostrar_error("Error", f"Error al actualizar mesa: {msg}")
                 return
             
-            DialogUtils.mostrar_exito("Éxito", "Pedido creado correctamente")
+            # Guardar referencia del pedido actual en la mesa
+            if not hasattr(self, 'mesa_pedido_actual'):
+                self.mesa_pedido_actual = {}
+            self.mesa_pedido_actual[mesa.id] = pedido.id
+            
+            DialogUtils.mostrar_exito("Éxito", f"Pedido #{pedido.id} creado correctamente")
             dialog.destroy()
             self.refrescar_tabla()
         
@@ -1022,6 +1052,65 @@ class MesasPage(ctk.CTkFrame):
             import traceback
             traceback.print_exc()
             DialogUtils.mostrar_error("Error", f"Error: {str(e)}")
+
+    def _crear_cliente_temporal(self, mesa, timestamp):
+        """Crear un cliente temporal único para un pedido específico"""
+        from controllers.clientes_controller import ClientesController
+        
+        controller_clientes = ClientesController()
+        
+        # Crear identificador único para este pedido
+        fecha_hora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        nombre_cliente = f"MESA_{mesa.numero}_PED_{timestamp}"
+        
+        success, nuevo_cliente, msg = controller_clientes.crear_cliente(
+            cedula=f"TEMP_{mesa.numero}_{timestamp}_{fecha_hora}",
+            nombre=nombre_cliente,
+            apellido=f"Pedido_{timestamp}",
+            telefono="0000000000",
+            direccion=f"Mesa {mesa.numero} - Pedido temporal",
+            correo=f"mesa{mesa.numero}_pedido{timestamp}@temporal.com"
+        )
+        
+        if success:
+            return nuevo_cliente
+        else:
+            print(f"Error al crear cliente temporal: {msg}")
+            return None
+    
+    def _obtener_o_crear_cliente_generico(self, mesa):
+        """Obtener o crear un cliente genérico para la mesa"""
+        from controllers.clientes_controller import ClientesController
+        import datetime
+        
+        controller_clientes = ClientesController()
+        
+        # Buscar si ya existe un cliente genérico para esta mesa
+        success, clientes, _ = controller_clientes.obtener_todos_clientes()
+        
+        if success and clientes:
+            for cliente in clientes:
+                # Buscar cliente con el patrón "MESA_X_TEMP"
+                if hasattr(cliente, 'nombre') and cliente.nombre == f"MESA_{mesa.numero}_TEMP":
+                    return cliente
+        
+        # Si no existe, crear cliente temporal
+        timestamp = int(datetime.datetime.now().timestamp())
+        success, nuevo_cliente, msg = controller_clientes.crear_cliente(
+            cedula=f"TEMP_{mesa.numero}_{timestamp}",
+            nombre=f"MESA_{mesa.numero}_TEMP",
+            apellido="Temporal",
+            telefono="0000000000",  # Teléfono por defecto
+            direccion="Mesa temporal",
+            correo=f"mesa{mesa.numero}@temporal.com"
+        )
+        
+        if success:
+            return nuevo_cliente
+        else:
+            print(f"Error al crear cliente temporal: {msg}")
+            return None
+    
         
     def crear_mesa(self):
         """Muestra el diálogo para crear una nueva mesa sin vista previa"""
