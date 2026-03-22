@@ -243,6 +243,114 @@ class MesasPage(ctk.CTkFrame):
             self._mostrar_detalles_mesa(mesa)
     
     def _mostrar_detalles_mesa(self, mesa):
+        """Mostrar diálogo con detalles de la mesa con estilo moderno"""
+        dialog = ctk.CTkToplevel()
+        dialog.title(f"Detalles - Mesa {mesa.numero}")
+        dialog.geometry("400x520")
+        dialog.resizable(False, False)
+        dialog.attributes('-topmost', True)
+        dialog.grab_set()
+        dialog.configure(fg_color="#F3F4F6") # Fondo claro estilo React
+
+        # === HEADER NARANJA (Consistente con Crear Mesa) ===
+        header_frame = ctk.CTkFrame(dialog, fg_color="#EA580C", corner_radius=15, height=120)
+        header_frame.pack(fill="x", padx=20, pady=(20, 10))
+        header_frame.pack_propagate(False)
+
+        ctk.CTkLabel(header_frame, text="📋", font=("Helvetica", 40)).pack(pady=(10, 0))
+        ctk.CTkLabel(
+            header_frame, 
+            text=f"Mesa {mesa.numero}", 
+            text_color="white", 
+            font=("Helvetica", 22, "bold")
+        ).pack()
+
+        # === CUERPO DE INFORMACIÓN ===
+        body_frame = ctk.CTkFrame(dialog, fg_color="white", corner_radius=15)
+        body_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Determinar color según estado para el texto
+        estado_map = {
+            "libre": {"color": "#10B981", "icon": "🟢"},
+            "ocupada": {"color": "#EF4444", "icon": "🔴"},
+            "reservada": {"color": "#F59E0B", "icon": "🟠"}
+        }
+        info_estado = estado_map.get(mesa.estado.value.lower(), {"color": "#6B7280", "icon": "⚪"})
+
+        # --- Card de Estado ---
+        label_est_title = ctk.CTkLabel(body_frame, text="Estado Actual", font=("Helvetica", 12, "bold"), text_color="#374151")
+        label_est_title.pack(anchor="w", padx=25, pady=(20, 0))
+        
+        estado_display = ctk.CTkLabel(
+            body_frame, 
+            text=f"{info_estado['icon']} {mesa.estado.value.capitalize()}",
+            font=("Helvetica", 16, "bold"),
+            text_color=info_estado['color'],
+            fg_color="#F9FAFB",
+            height=45,
+            corner_radius=8
+        )
+        estado_display.pack(fill="x", padx=20, pady=5)
+
+        # --- Card de Capacidad ---
+        label_cap_title = ctk.CTkLabel(body_frame, text="Capacidad de Mesa", font=("Helvetica", 12, "bold"), text_color="#374151")
+        label_cap_title.pack(anchor="w", padx=25, pady=(15, 0))
+        
+        capacidad_display = ctk.CTkLabel(
+            body_frame, 
+            text=f"👥 {mesa.capacidad} Personas",
+            font=("Helvetica", 14),
+            text_color="#4B5563",
+            fg_color="#F9FAFB",
+            height=40,
+            corner_radius=8
+        )
+        capacidad_display.pack(fill="x", padx=20, pady=5)
+
+        # === BOTONES DE ACCIÓN ===
+        acciones_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        acciones_frame.pack(fill="x", padx=20, pady=(10, 20))
+
+        if mesa.estado.value.lower() in ["ocupada", "reservada"]:
+            # Botón Agregar Platos (Naranja)
+            btn_agregar = ctk.CTkButton(
+                acciones_frame,
+                text="➕ Agregar Platos",
+                command=lambda: self._agregar_platos_pedido_existente(mesa),
+                fg_color="#EA580C",
+                hover_color="#C2410C",
+                text_color="white",
+                font=("Helvetica", 13, "bold"),
+                height=45
+            )
+            btn_agregar.pack(fill="x", pady=5)
+            
+            # Botón Liberar (Rojo suave)
+            btn_liberar = ctk.CTkButton(
+                acciones_frame,
+                text="🔓 Liberar Mesa",
+                command=lambda: self._liberar_mesa(mesa, dialog),
+                fg_color="#FEE2E2",
+                hover_color="#FCA5A5",
+                text_color="#DC2626",
+                font=("Helvetica", 13, "bold"),
+                height=45
+            )
+            btn_liberar.pack(fill="x", pady=5)
+        
+        # Botón Cerrar siempre visible
+        btn_cerrar = ctk.CTkButton(
+            acciones_frame,
+            text="Cerrar",
+            command=dialog.destroy,
+            fg_color="transparent",
+            text_color="#6B7280",
+            hover_color="#E5E7EB",
+            height=35
+        )
+        btn_cerrar.pack(fill="x", pady=(5, 0))
+        
+    def _mostrar_detalles_mesa2(self, mesa):
         """Mostrar diálogo con detalles de la mesa"""
         dialog = ctk.CTkToplevel()
         dialog.title(f"Mesa {mesa.numero}")
@@ -828,6 +936,8 @@ class MesasPage(ctk.CTkFrame):
         
         self._actualizar_carrito_visual(carrito_items)
     
+    
+        
     def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
         """Procesar y crear el nuevo pedido"""
         from controllers.pedidos_controller import PedidosController
@@ -850,15 +960,26 @@ class MesasPage(ctk.CTkFrame):
             return
         
         try:
-            # Crear cliente primero
+            # Crear cliente primero (SIN pasar mesa_id)
             controller_clientes = ClientesController()
             success, cliente, msg = controller_clientes.crear_cliente(
-                nombre=f"Mesa {mesa.numero}",
-                mesa_id=mesa.id
+                cedula=f"MESA_{mesa.numero}",  # Identificador único
+                nombre=f"Mesa {mesa.numero}",   # Nombre del cliente
+                apellido="Cliente",             # Apellido por defecto
+                telefono=None,
+                direccion=None,
+                correo=None
             )
             
             if not success:
                 DialogUtils.mostrar_error("Error", f"Error al crear cliente: {msg}")
+                return
+            
+            # Asignar el cliente a la mesa usando el controlador de mesas
+            success, _, msg = self.controller.asignar_cliente_mesa(mesa.id, cliente.id)
+            
+            if not success:
+                DialogUtils.mostrar_error("Error", f"Error al asignar cliente a mesa: {msg}")
                 return
             
             # Crear pedido
@@ -901,68 +1022,85 @@ class MesasPage(ctk.CTkFrame):
             import traceback
             traceback.print_exc()
             DialogUtils.mostrar_error("Error", f"Error: {str(e)}")
-    
-    
+        
     def crear_mesa(self):
-        """Crear nueva mesa"""
-        dialog = ctk.CTkToplevel()
+        """Muestra el diálogo para crear una nueva mesa sin vista previa"""
+        dialog = ctk.CTkToplevel(self)
         dialog.title("Nueva Mesa")
-        dialog.geometry("400x250")
+        dialog.geometry("400x500") # Más compacta al no tener preview
         dialog.resizable(False, False)
-        dialog.attributes('-topmost', True)  # Mantener en el frente
-        dialog.grab_set()  # Hacerla modal
+        dialog.grab_set() 
+        dialog.configure(fg_color="#F3F4F6")
+
+        # === HEADER NARANJA ===
+        header_frame = ctk.CTkFrame(dialog, fg_color="#EA580C", corner_radius=15, height=140)
+        header_frame.pack(fill="x", padx=20, pady=(20, 10))
+        header_frame.pack_propagate(False)
+
+        ctk.CTkLabel(header_frame, text="🍴", font=("Helvetica", 45)).pack(pady=(15, 0))
+        ctk.CTkLabel(
+            header_frame, 
+            text="Crear Nueva Mesa", 
+            text_color="white", 
+            font=("Helvetica", 20, "bold")
+        ).pack()
+
+        # === CUERPO DEL FORMULARIO ===
+        body_frame = ctk.CTkFrame(dialog, fg_color="white", corner_radius=15)
+        body_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Entrada: Número de Mesa
+        label_num = ctk.CTkLabel(body_frame, text="🔢 Número de Mesa", font=("Helvetica", 12, "bold"), text_color="#374151")
+        label_num.pack(anchor="w", padx=25, pady=(20, 5))
         
-        frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Número de mesa
-        ctk.CTkLabel(frame, text="Número de Mesa:", text_color=config.COLORS["text_dark"], font=("Helvetica", 11, "bold")).pack(anchor="w", pady=(0, 5))
-        entry_numero = ctk.CTkEntry(frame, placeholder_text="Ej: 1, 2, 3...")
-        entry_numero.pack(fill="x", pady=(0, 15))
-        
-        # Capacidad
-        ctk.CTkLabel(frame, text="Capacidad:", text_color=config.COLORS["text_dark"], font=("Helvetica", 11, "bold")).pack(anchor="w", pady=(0, 5))
-        entry_capacidad = ctk.CTkEntry(frame, placeholder_text="Ej: 2, 4, 6...")
-        entry_capacidad.pack(fill="x", pady=(0, 15))
-        
-        # Botones
-        frame_botones = ctk.CTkFrame(frame, fg_color="transparent")
-        frame_botones.pack(fill="x", pady=10)
-        
-        def guardar():
-            try:
-                numero = int(entry_numero.get())
-                capacidad = int(entry_capacidad.get())
-                success, _, msg = self.controller.crear_mesa(numero, capacidad)
-                if success:
-                    DialogUtils.mostrar_exito("Éxito", "Mesa creada correctamente")
-                    dialog.destroy()
-                    self.refrescar_tabla()
-                else:
-                    DialogUtils.mostrar_error("Error", msg)
-            except ValueError:
-                DialogUtils.mostrar_error("Error", "Introduce números válidos")
-        
-        btn_guardar = ctk.CTkButton(
-            frame_botones,
-            text="✅ Guardar",
-            command=guardar,
-            fg_color=config.COLORS["success"],
-            hover_color="#0E9F6E",
-            text_color="white"
+        entry_numero = ctk.CTkEntry(
+            body_frame, placeholder_text="Ej: 1, 2, 3...", 
+            height=40, border_color="#D1D5DB", fg_color="#F9FAFB"
         )
-        btn_guardar.pack(side="left", padx=5, expand=True, fill="x")
+        entry_numero.pack(fill="x", padx=25)
         
-        btn_cancelar = ctk.CTkButton(
-            frame_botones,
-            text="❌ Cancelar",
-            command=dialog.destroy,
-            fg_color="#6B7280",
-            hover_color="#4B5563",
-            text_color="white"
+        # Entrada: Capacidad
+        label_cap = ctk.CTkLabel(body_frame, text="👥 Capacidad", font=("Helvetica", 12, "bold"), text_color="#374151")
+        label_cap.pack(anchor="w", padx=25, pady=(15, 5))
+        
+        entry_capacidad = ctk.CTkEntry(
+            body_frame, placeholder_text="Ej: 2, 4, 6...", 
+            height=40, border_color="#D1D5DB", fg_color="#F9FAFB"
         )
-        btn_cancelar.pack(side="left", padx=5, expand=True, fill="x")
-    
+        entry_capacidad.pack(fill="x", padx=25)
+
+        # === BOTONES DE ACCIÓN ===
+        # Ajustamos el padding para que respire el diseño
+        btn_save = ctk.CTkButton(
+            dialog, text="✅ Guardar Mesa", fg_color="#EA580C", hover_color="#C2410C",
+            height=45, font=("Helvetica", 13, "bold"),
+            command=lambda: self._guardar_nueva_mesa(entry_numero.get(), entry_capacidad.get(), dialog)
+        )
+        btn_save.pack(fill="x", padx=20, pady=(20, 5))
+
+        btn_cancel = ctk.CTkButton(
+            dialog, text="Cancelar", fg_color="transparent", text_color="#4B5563",
+            hover_color="#E5E7EB", height=40, 
+            command=dialog.destroy
+        )
+        btn_cancel.pack(fill="x", padx=20, pady=(0, 20))
+
+    def _guardar_nueva_mesa(self, numero, capacidad, dialog):
+        """Lógica corregida para manejar el retorno del controlador"""
+        if not numero or not capacidad:
+            DialogUtils.mostrar_error("Error", "Todos los campos son obligatorios")
+            return
+        
+        # CORRECCIÓN DEL ERROR: Añadimos una variable extra (mesa_result) 
+        success, mesa_result, msg = self.controller.crear_mesa(numero, capacidad)
+        
+        if success:
+            DialogUtils.mostrar_exito("Éxito", "Mesa creada correctamente")
+            dialog.destroy()
+            self.refrescar_tabla()
+        else:
+            DialogUtils.mostrar_error("Error", msg)
+
     def _agregar_platos_pedido_existente(self, mesa):
         """Agregar platos a un pedido existente"""
         from controllers.pedidos_controller import PedidosController
