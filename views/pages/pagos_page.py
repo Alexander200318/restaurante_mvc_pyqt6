@@ -378,16 +378,13 @@ class PagosPage(ctk.CTkFrame):
             fill="x"
         )
     #--------------------------------
-# Mostrar Ticket
+    # Mostrar Ticket
     def _mostrar_ticket(self, pago_id):
         success, pago, msg = self.controller.obtener_pago(pago_id)
         if not success or not pago:
             DialogUtils.mostrar_error("Error", "No se pudo generar el ticket")
             return
 
-        # -------------------------
-        # Datos reales del modelo
-        # -------------------------
         fecha = pago.fecha_pago.strftime("%d/%m/%Y %H:%M") if pago.fecha_pago else "N/A"
 
         cliente = "Consumidor final"
@@ -404,9 +401,20 @@ class PagosPage(ctk.CTkFrame):
         total = monto + propina
         metodo = pago.metodo.value if pago.metodo else "N/A"
 
-        # -------------------------
-        # Ventana
-        # -------------------------
+        texto = (
+            f"====== SYSTEMA RESTAURANTE ======\n"
+            f"Pago #: {pago.id}\n"
+            f"Fecha: {fecha}\n"
+            f"Mesa: {mesa}\n"
+            f"Cliente: {cliente}\n"
+            f"Método: {metodo}\n"
+            "-------------------------------\n"
+            f"Subtotal: ${monto:.2f}\n"
+            f"Propina: ${propina:.2f}\n"
+            f"TOTAL: ${total:.2f}\n"
+            "===============================\n"
+        )
+
         ventana = ctk.CTkToplevel(self)
         ventana.title("Factura de Pago")
         ventana.geometry("420x520")
@@ -414,56 +422,25 @@ class PagosPage(ctk.CTkFrame):
         frame = ctk.CTkFrame(ventana)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # -------------------------
-        # Encabezado
-        # -------------------------
-        ctk.CTkLabel(
-            frame,
-            text="🍽 RESTAURANTE SYSTEMA",
-            font=("Arial", 16, "bold")
-        ).pack(pady=(5, 0))
+        ctk.CTkLabel(frame, text="🍽 RESTAURANTE SYSTEMA",
+                    font=("Arial", 16, "bold")).pack(pady=(5, 0))
 
-        ctk.CTkLabel(
-            frame,
-            text="FACTURA",
-            font=("Arial", 14)
-        ).pack(pady=(0, 10))
+        ctk.CTkLabel(frame, text="FACTURA",
+                    font=("Arial", 14)).pack(pady=(0, 10))
 
-        # -------------------------
-        # Información
-        # -------------------------
-        texto = (
-            f"Pago #: {pago.id}\n"
-            f"Fecha: {fecha}\n"
-            f"Mesa: {mesa}\n"
-            f"Cliente: {cliente}\n"
-            f"Método: {metodo}\n"
-            "----------------------------\n"
-            f"Subtotal: ${monto:.2f}\n"
-            f"Propina: ${propina:.2f}\n"
-            "----------------------------\n"
-            f"TOTAL: ${total:.2f}"
-        )
+        ctk.CTkLabel(frame, text=texto,
+                    justify="left",
+                    font=("Courier", 12)).pack(pady=10, anchor="w")
 
-        ctk.CTkLabel(
-            frame,
-            text=texto,
-            justify="left",
-            font=("Courier", 12)
-        ).pack(pady=10, anchor="w")
-
-        # -------------------------
-        # Botones
-        # -------------------------
         frame_botones = ctk.CTkFrame(frame, fg_color="transparent")
         frame_botones.pack(fill="x", pady=10)
 
-        btn_imprimir = ctk.CTkButton(
+        btn_pdf = ctk.CTkButton(
             frame_botones,
-            text="🖨 Imprimir",
-            command=lambda: self._imprimir_ticket_texto(pago)
+            text="Guardar PDF",
+            command=lambda: self._guardar_ticket_pdf(texto)
         )
-        btn_imprimir.pack(side="left", expand=True, padx=5)
+        btn_pdf.pack(side="left", expand=True, padx=5)
 
         btn_cerrar = ctk.CTkButton(
             frame_botones,
@@ -472,32 +449,31 @@ class PagosPage(ctk.CTkFrame):
             command=ventana.destroy
         )
         btn_cerrar.pack(side="right", expand=True, padx=5)
+        #--------------------------------------#
+    def _guardar_ticket_pdf(self, texto):
+            from tkinter import filedialog
+            from reportlab.lib.pagesizes import letter
+            from reportlab.pdfgen import canvas
 
-    #---------------------------------
-    def _imprimir_ticket_texto(self, pago):
-        cliente = f"{pago.pedido.cliente.nombre} {pago.pedido.cliente.apellido}" \
-            if pago.pedido and pago.pedido.cliente else "Consumidor final"
+            ruta = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("Archivo PDF", "*.pdf")]
+            )
 
-        mesa = pago.pedido.mesa.numero if pago.pedido and pago.pedido.mesa else "N/A"
+            if not ruta:
+                return
 
-        contenido = (
-            "====== SYSTEMA RESTAURANTE ======\n"
-            f"Pago #: {pago.id}\n"
-            f"Fecha: {pago.fecha_pago}\n"
-            f"Mesa: {mesa}\n"
-            f"Cliente: {cliente}\n"
-            f"Método: {pago.metodo.value}\n"
-            "-------------------------------\n"
-            f"Subtotal: ${pago.monto:.2f}\n"
-            f"Propina: ${pago.cambio:.2f}\n"
-            f"TOTAL: ${(pago.monto + pago.cambio):.2f}\n"
-            "===============================\n"
-        )
+            c = canvas.Canvas(ruta, pagesize=letter)
+            c.setFont("Helvetica", 11)
 
-        with open("factura.txt", "w", encoding="utf-8") as f:
-            f.write(contenido)
+            y = 750
+            for linea in texto.split("\n"):
+                c.drawString(50, y, linea)
+                y -= 15
 
-        DialogUtils.mostrar_exito(
-            "Factura generada",
-            "Se guardó como factura.txt"
-        )
+            c.save()
+
+            DialogUtils.mostrar_exito(
+                "PDF generado",
+                "La factura se guardó correctamente"
+            )   

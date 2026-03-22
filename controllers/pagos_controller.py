@@ -152,3 +152,4 @@ class PagosController(BaseController):
             return False, None, "Cédula vacía"
         
         return self.clientes_model.obtener_cliente_por_cedula(cedula)
+    

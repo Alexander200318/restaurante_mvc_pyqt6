@@ -1,0 +1,6 @@
+Hola, soy el Alfonso.
+Aquí les dejo las librerias extra que usé para esto.
+
+Por ahora es solo esta para los PDFs. Pilas para que les funcione.
+
+pip install reportlab

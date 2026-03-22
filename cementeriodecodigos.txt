@@ -371,3 +371,15 @@ class PagosPage(ctk.CTkFrame):
             padx=20,
             fill="x"
         )
+
+
+
+
+
+        ################################################
+                btn_imprimir = ctk.CTkButton(
+            frame_botones,
+            text="🖨 Imprimir",
+            command=lambda: self._imprimir_ticket_texto(pago)
+        )
+        btn_imprimir.pack(side="left", expand=True, padx=5)

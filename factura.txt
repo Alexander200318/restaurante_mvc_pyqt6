@@ -1,11 +1,11 @@
-====== RESTAURANTE PYTHON ======
-Pago #: 17
-Fecha: 2026-03-22 15:35:34.560764
-Mesa: 1
+====== SYSTEMA RESTAURANTE ======
+Pago #: 18
+Fecha: 2026-03-22 15:54:58.307177
+Mesa: 2
 Cliente: CLIENTE_GENERICO Sistema
-Método: efectivo
+Método: tarjeta
 -------------------------------
 Subtotal: $0.00
-Propina: $1.50
-TOTAL: $1.50
+Propina: $0.25
+TOTAL: $0.25
 ===============================
