@@ -5,16 +5,21 @@ from models.pagos import PagosModel
 import config
 from datetime import datetime
 from .base_controller import BaseController
+from models.clientes import ClientesModel
 
 class PagosController(BaseController):
     """Controlador para Pagos"""
     
     def __init__(self):
         self.model = PagosModel()
+        self.clientes_model = ClientesModel()
     
     # Crear/Registrar
     def registrar_pago(self, pedido_id: int, monto: float, metodo: str,
                       referencia: str = None, cambio: float = 0.0):
+
+
+
         """Registrar nuevo pago"""
         try:
             metodo_enum = config.PagoMetodo(metodo)
@@ -95,6 +100,8 @@ class PagosController(BaseController):
         """Obtener pago de un pedido"""
         return self.model.obtener_pago_por_pedido(pedido_id)
     
+
+
     # Reportes
     def obtener_ingresos_rango_fechas(self, fecha_inicio: datetime, fecha_fin: datetime):
         """Obtener ingresos en rango"""
@@ -103,6 +110,8 @@ class PagosController(BaseController):
             return True, f"${ingresos:.2f}", msg
         return success, "Error", msg
     
+
+
     def obtener_ingresos_por_metodo(self, fecha_inicio: datetime, fecha_fin: datetime):
         """Obtener desglose de ingresos por método"""
         success, desglose, msg = self.model.calcular_ingresos_por_metodo(fecha_inicio, fecha_fin)
@@ -115,6 +124,8 @@ class PagosController(BaseController):
         }
         return True, datos_formateados, msg
     
+
+
     def obtener_ingresos_por_categoria(self, fecha_inicio: datetime, fecha_fin: datetime):
         """Obtener ingresos por categoría de plato"""
         success, ingresos, msg = self.model.calcular_ingresos_por_categoria(fecha_inicio, fecha_fin)
@@ -126,3 +137,18 @@ class PagosController(BaseController):
             categoria: f"${monto:.2f}" for categoria, monto in ingresos.items()
         }
         return True, datos_formateados, msg
+    
+
+
+
+    def calcular_propina_sugerida(self, monto: float) -> float:
+        """
+        Calcula la propina sugerida (10% del monto).
+        """
+        return round(monto * 0.10, 2)
+    
+    def buscar_cliente_por_cedula(self, cedula: str):
+        if not cedula:
+            return False, None, "Cédula vacía"
+        
+        return self.clientes_model.obtener_cliente_por_cedula(cedula)

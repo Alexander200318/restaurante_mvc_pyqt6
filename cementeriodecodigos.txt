@@ -1,3 +1,5 @@
+##### Vista de Pagos.
+
 """
 Página: Gestión de Pagos
 """
@@ -132,8 +134,7 @@ class PagosPage(ctk.CTkFrame):
         success, _, msg = self.controller.completar_pago(pago_id)
 
         if success:
-        
-            self._mostrar_ticket(pago_id)
+            DialogUtils.mostrar_exito("Éxito", "Pago completado correctamente")
             self.refrescar_tablas()
         else:
             DialogUtils.mostrar_error("Error", msg)
@@ -142,7 +143,7 @@ class PagosPage(ctk.CTkFrame):
     def _abrir_dialogo_pago(self):
         dialogo = ctk.CTkToplevel(self)
         dialogo.title("Registrar Pago")
-        dialogo.geometry("350x500")
+        dialogo.geometry("350x600")
         dialogo.configure(fg_color="white")
         COLOR_NARANJA = "#ff8c00"
 
@@ -178,7 +179,10 @@ class PagosPage(ctk.CTkFrame):
         ctk.CTkLabel(dialogo, text="Método de Pago").pack(pady=(15, 0))
 
         metodos = self.controller.obtener_metodos_disponibles()
-        
+
+        if not metodos:
+            metodos = ["EFECTIVO"]
+
         metodo_var = ctk.StringVar(value=metodos[0])
 
         combo_metodo = ctk.CTkComboBox(
@@ -192,81 +196,62 @@ class PagosPage(ctk.CTkFrame):
             text_color="black"
         )
         combo_metodo.pack(pady=5)
-        ## .--------------------------
+
+
+        # -------- Cédula del cliente --------
+        ctk.CTkLabel(dialogo, text="Cédula del Cliente").pack(pady=(15, 0))
+
+        entry_cedula = ctk.CTkEntry(
+            dialogo,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            text_color="black"
+        )
+        entry_cedula.pack(pady=5)
+
 
         # -------- Monto --------
-        ctk.CTkLabel(dialogo, text="Monto.").pack(pady=(15, 0))
-        entry_monto = ctk.CTkEntry(dialogo)
+        ctk.CTkLabel(dialogo, text="Monto a pagar").pack(pady=(15, 0))
+
+        entry_monto = ctk.CTkEntry(
+            dialogo,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            text_color="black"
+        )
+
+
         entry_monto.pack(pady=5)
 
         # -------- Propina --------
-        ctk.CTkLabel(dialogo, text="Propina.").pack(pady=(15, 0))
-        entry_propina = ctk.CTkEntry(dialogo)
+        ctk.CTkLabel(dialogo, text="Propina (opcional)").pack(pady=(15, 0))
+
+        entry_propina = ctk.CTkEntry(
+            dialogo,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            text_color="black"
+        )
         entry_propina.pack(pady=5)
 
-        # -------- Función para calcular propina --------
         def calcular_propina(event=None):
             try:
-                monto_texto = entry_monto.get()
+                monto = float(entry_monto.get())
+                propina_minima = round(monto * 0.10, 2)
 
-                if not monto_texto:
-                    entry_propina.delete(0, "end")
+                if propina < propina_minima:
+                    DialogUtils.mostrar_error(
+                        "Error",
+                        f"La propina mínima es ${propina_minima}"
+                    )
                     return
 
-                monto = float(monto_texto)
-                propina = self.controller.calcular_propina_sugerida(monto)
+                if not entry_propina.get():
+                    entry_propina.insert(0, str(propina_auto))
+            except:
+                pass
 
-                entry_propina.delete(0, "end")
-                entry_propina.insert(0, str(propina))
-
-            except ValueError:
-                entry_propina.delete(0, "end")
-
-        # -------- AQUÍ recién se hace el bind --------
         entry_monto.bind("<KeyRelease>", calcular_propina)
-
-
-
-        # -------- Label cliente --------
-        label_cliente = ctk.CTkLabel(dialogo, text="", text_color="black")
-        label_cliente.pack(pady=(5, 0))
-
-        # -------- Función buscar cliente --------
-        def buscar_cliente():
-            cedula = entry_cedula.get()
-
-            success, cliente, msg = self.controller.buscar_cliente_por_cedula(cedula)
-
-            if success and cliente:
-                nombre_completo = f"{cliente.nombre} {cliente.apellido}"
-                label_cliente.configure(text=f"Cliente: {nombre_completo}")
-            else:
-                label_cliente.configure(text="Cliente no encontrado")
-
-
-
-
-        # -------- Cédula --------
-        ctk.CTkLabel(dialogo, text="Cédula").pack(pady=(15, 0))
-
-        frame_cedula = ctk.CTkFrame(dialogo, fg_color="transparent")
-        frame_cedula.pack(pady=5)
-
-        entry_cedula = ctk.CTkEntry(frame_cedula)
-        entry_cedula.pack(side="left", padx=(0, 5))
-
-        btn_buscar = ctk.CTkButton(
-            frame_cedula,
-            text="Buscar",
-            width=80,
-            fg_color=COLOR_NARANJA,
-            command=lambda: buscar_cliente()
-        )
-        btn_buscar.pack(side="left")
-                
-
-
-
         # -------- Botón confirmar --------
         def confirmar():
             if not self.pago_seleccionado:
@@ -278,7 +263,6 @@ class PagosPage(ctk.CTkFrame):
             metodo = metodo_var.get()
             monto = entry_monto.get()
             propina = entry_propina.get()
-            cedula = entry_cedula.get()
 
             if not monto:
                 DialogUtils.mostrar_advertencia("Advertencia", "Ingresa el monto")
@@ -289,11 +273,6 @@ class PagosPage(ctk.CTkFrame):
                 propina = float(propina) if propina else 0.0
             except ValueError:
                 DialogUtils.mostrar_error("Error", "Monto o propina inválidos")
-                return
-            
-
-            if not cedula:
-                DialogUtils.mostrar_advertencia("Advertencia", "Ingresa la cédula")
                 return
 
             # -------------------------
@@ -341,28 +320,43 @@ class PagosPage(ctk.CTkFrame):
                     metodo=metodo
                 )
 
+
+
+            # -------- vALIDAR CÉDULA ------------ #
+            cedula = entry_cedula.get().strip()
+            if not cedula:
+                DialogUtils.mostrar_advertencia("Advertencia", "Ingresa la cédula")
+                return
+
+            # Validar cliente en BD
+            success_cliente, cliente, msg = self.controller.obtener_cliente_por_cedula(cedula)
+
+
             # -------------------------
             # Resultado final
             # -------------------------
             if success:
+                DialogUtils.mostrar_exito("Éxito", "Pago procesado correctamente")
                 dialogo.destroy()
-                self._mostrar_ticket(pago_id)
                 self.refrescar_tablas()
-
             else:
                 DialogUtils.mostrar_error("Error", msg)
-
-        #-----------------------------------------------------
-
+        # --------------------------------- #
 
 
 
-        #------------------------------------------------------
+        if not success_cliente:
+            DialogUtils.mostrar_error("Error", msg)
+            return
 
+        if not cliente and cedula != "9999999999":
+            DialogUtils.mostrar_error("Error", "Cliente no registrado")
+            return
+        # --------------------------------- #
 
-
-
-        # -------- Botón confirmar --------
+        # -------- Botón confirmar -------- #
+        print("Se está creando el botón confirmar")
+        
         btn_confirmar = ctk.CTkButton(
             dialogo,
             text="Confirmar Pago",
@@ -376,128 +370,4 @@ class PagosPage(ctk.CTkFrame):
             pady=20,
             padx=20,
             fill="x"
-        )
-    #--------------------------------
-# Mostrar Ticket
-    def _mostrar_ticket(self, pago_id):
-        success, pago, msg = self.controller.obtener_pago(pago_id)
-        if not success or not pago:
-            DialogUtils.mostrar_error("Error", "No se pudo generar el ticket")
-            return
-
-        # -------------------------
-        # Datos reales del modelo
-        # -------------------------
-        fecha = pago.fecha_pago.strftime("%d/%m/%Y %H:%M") if pago.fecha_pago else "N/A"
-
-        cliente = "Consumidor final"
-        mesa = "N/A"
-
-        if pago.pedido and pago.pedido.cliente:
-            cliente = f"{pago.pedido.cliente.nombre} {pago.pedido.cliente.apellido}"
-
-        if pago.pedido and pago.pedido.mesa:
-            mesa = pago.pedido.mesa.numero
-
-        monto = pago.monto or 0.0
-        propina = pago.cambio or 0.0
-        total = monto + propina
-        metodo = pago.metodo.value if pago.metodo else "N/A"
-
-        # -------------------------
-        # Ventana
-        # -------------------------
-        ventana = ctk.CTkToplevel(self)
-        ventana.title("Factura de Pago")
-        ventana.geometry("420x520")
-
-        frame = ctk.CTkFrame(ventana)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # -------------------------
-        # Encabezado
-        # -------------------------
-        ctk.CTkLabel(
-            frame,
-            text="🍽 RESTAURANTE SYSTEMA",
-            font=("Arial", 16, "bold")
-        ).pack(pady=(5, 0))
-
-        ctk.CTkLabel(
-            frame,
-            text="FACTURA",
-            font=("Arial", 14)
-        ).pack(pady=(0, 10))
-
-        # -------------------------
-        # Información
-        # -------------------------
-        texto = (
-            f"Pago #: {pago.id}\n"
-            f"Fecha: {fecha}\n"
-            f"Mesa: {mesa}\n"
-            f"Cliente: {cliente}\n"
-            f"Método: {metodo}\n"
-            "----------------------------\n"
-            f"Subtotal: ${monto:.2f}\n"
-            f"Propina: ${propina:.2f}\n"
-            "----------------------------\n"
-            f"TOTAL: ${total:.2f}"
-        )
-
-        ctk.CTkLabel(
-            frame,
-            text=texto,
-            justify="left",
-            font=("Courier", 12)
-        ).pack(pady=10, anchor="w")
-
-        # -------------------------
-        # Botones
-        # -------------------------
-        frame_botones = ctk.CTkFrame(frame, fg_color="transparent")
-        frame_botones.pack(fill="x", pady=10)
-
-        btn_imprimir = ctk.CTkButton(
-            frame_botones,
-            text="🖨 Imprimir",
-            command=lambda: self._imprimir_ticket_texto(pago)
-        )
-        btn_imprimir.pack(side="left", expand=True, padx=5)
-
-        btn_cerrar = ctk.CTkButton(
-            frame_botones,
-            text="Cerrar",
-            fg_color="gray",
-            command=ventana.destroy
-        )
-        btn_cerrar.pack(side="right", expand=True, padx=5)
-
-    #---------------------------------
-    def _imprimir_ticket_texto(self, pago):
-        cliente = f"{pago.pedido.cliente.nombre} {pago.pedido.cliente.apellido}" \
-            if pago.pedido and pago.pedido.cliente else "Consumidor final"
-
-        mesa = pago.pedido.mesa.numero if pago.pedido and pago.pedido.mesa else "N/A"
-
-        contenido = (
-            "====== RESTAURANTE PYTHON ======\n"
-            f"Pago #: {pago.id}\n"
-            f"Fecha: {pago.fecha_pago}\n"
-            f"Mesa: {mesa}\n"
-            f"Cliente: {cliente}\n"
-            f"Método: {pago.metodo.value}\n"
-            "-------------------------------\n"
-            f"Subtotal: ${pago.monto:.2f}\n"
-            f"Propina: ${pago.cambio:.2f}\n"
-            f"TOTAL: ${(pago.monto + pago.cambio):.2f}\n"
-            "===============================\n"
-        )
-
-        with open("factura.txt", "w", encoding="utf-8") as f:
-            f.write(contenido)
-
-        DialogUtils.mostrar_exito(
-            "Factura generada",
-            "Se guardó como factura.txt"
         )

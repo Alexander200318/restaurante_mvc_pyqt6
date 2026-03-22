@@ -180,3 +180,22 @@ class ClientesModel(BaseModel):
             return None
         
         return self._ejecutar_con_manejo_errores(_eliminar)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def obtener_cliente_por_cedula(self, cedula: str):
+        """Buscar cliente por cédula"""
+        def _obtener(session):
+            return session.query(Cliente).filter(Cliente.cedula == cedula).first()
+        
+        return self._obtener_con_manejo_errores(_obtener)

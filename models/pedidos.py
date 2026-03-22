@@ -12,6 +12,7 @@ import config
 from utils.validators import validar_cantidad
 from .base_model import BaseModel
 
+
 class PedidosModel(BaseModel):
     """Lógica de negocio para Pedidos"""
     

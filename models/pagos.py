@@ -10,6 +10,8 @@ import config
 from utils.validators import validar_precio
 from .base_model import BaseModel
 
+from sqlalchemy.orm import joinedload
+
 class PagosModel(BaseModel):
     """Lógica de negocio para Pagos"""
     
@@ -213,3 +215,13 @@ class PagosModel(BaseModel):
             return QueriesManager.obtener_ingresos_por_categoria(session, fecha_inicio, fecha_fin)
         
         return self._obtener_con_manejo_errores(_calcular)
+    
+
+    def obtener_pago(self, pago_id: int) -> Tuple[bool, Optional[Pago], str]:
+        def _obtener(session):
+            return session.query(Pago).options(
+                joinedload(Pago.pedido).joinedload(Pedido.cliente),
+                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+            ).filter(Pago.id == pago_id).first()
+
+        return self._obtener_con_manejo_errores(_obtener)
