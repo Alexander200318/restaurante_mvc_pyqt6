@@ -167,9 +167,10 @@ class FormDialog(ctk.CTkToplevel):
             tipos_entrada = ['text', 'number', 'email', 'phone']
             
             if tipo in tipos_entrada:
+                placeholder = config.get('placeholder', f"Ingrese {label_text.lower()}")
                 widget = ctk.CTkEntry(
                     frame, 
-                    placeholder_text=f"Ingrese {label_text.lower()}",
+                    placeholder_text=placeholder,
                     placeholder_text_color="#9CA3AF",
                     **input_kwargs
                 )
@@ -177,6 +178,41 @@ class FormDialog(ctk.CTkToplevel):
                     widget.insert(0, str(valor_inicial))
                 widget.pack(fill="x", pady=(0, 5))
             
+            elif tipo == 'switch':
+                # Switch booleano (On/Off) con diseño mejorado (Label izq, Switch der)
+                label.pack_forget() # Ocultamos el label default vertical
+                
+                switch_container = ctk.CTkFrame(frame, fg_color="transparent")
+                switch_container.pack(fill="x", pady=(10, 5))
+                
+                # Label a la izquierda
+                lbl_switch = ctk.CTkLabel(
+                    switch_container,
+                    text=label_text,
+                    text_color=self.label_color,
+                    font=("Segoe UI", 13, "bold")
+                )
+                lbl_switch.pack(side="left")
+                
+                # Valor inicial
+                val_bool = bool(valor_inicial) if isinstance(valor_inicial, bool) else str(valor_inicial).lower() == 'true'
+                
+                widget = ctk.CTkSwitch(
+                    switch_container,
+                    text="", # El texto va en el label separado
+                    onvalue=True,
+                    offvalue=False,
+                    font=("Segoe UI", 13),
+                    progress_color=self.accent_color
+                )
+                
+                if val_bool:
+                    widget.select()
+                else:
+                    widget.deselect()
+                    
+                widget.pack(side="right")
+
             elif tipo == 'dropdown':
                 opciones = config.get('options', [])
                 es_editable = config.get('editable', False)
@@ -295,15 +331,24 @@ class FormDialog(ctk.CTkToplevel):
                 # --- OBTENER VALOR ---
                 if tipo == 'textarea':
                     valor_raw = widget.get("1.0", "end-1c")
+                elif tipo == 'switch':
+                    valor_raw = widget.get() # Retorna 1 (On) o 0 (Off) o True/False
                 else:
                     valor_raw = widget.get()
                 
-                valor_str = valor_raw.strip() if valor_raw else ""
+                # Normalizar valor
+                if tipo == 'switch':
+                    valor_str = str(valor_raw)
+                    valor_final = bool(valor_raw)
+                else:
+                    valor_str = valor_raw.strip() if valor_raw else ""
+                    valor_final = valor_str
                 
                 # --- VALIDACIONES ---
                 
                 # A. REQUERIDO: Si está vacío y es requerido
-                if es_requerido and not valor_str:
+                # Para switch, siempre tiene valor (True/False), así que no aplica "vacío"
+                if tipo != 'switch' and es_requerido and not valor_str:
                     error_msg = "⚠ Este campo es obligatorio"
 
                 # B. REGEX / FORMATO (Solo si hay valor)
@@ -370,6 +415,8 @@ class FormDialog(ctk.CTkToplevel):
                         self.valores[nombre] = float(valor_str) if valor_str else 0.0
                     except:
                         self.valores[nombre] = 0.0
+                elif tipo == 'switch':
+                    self.valores[nombre] = valor_final
                 else:
                     self.valores[nombre] = valor_str
                 

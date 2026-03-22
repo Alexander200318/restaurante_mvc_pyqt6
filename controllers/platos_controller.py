@@ -14,20 +14,29 @@ class PlatosController(BaseController):
     # Crear
     def crear_plato(self, nombre: str, precio: float, categoria: str,
                    descripcion: str = None, tiempo_preparacion: int = 15,
-                   imagen_url: str = None):
-        """Crear plato"""
+                   imagen_url: str = None, ingredientes: list = None):
+        """Crear plato con ingredientes opcionales -> [{'id': int, 'cantidad': float}]"""
         try:
             categoria_enum = config.PlatoCategoría(categoria)
-            return self.model.crear_plato(nombre, precio, categoria_enum, descripcion, 
+            success, plato, msg = self.model.crear_plato(nombre, precio, categoria_enum, descripcion, 
                                          tiempo_preparacion, imagen_url)
+            
+            if success and ingredientes:
+                # Agregar ingredientes si se proveyeron
+                success_ing, _, msg_ing = self.model.actualizar_ingredientes_plato(plato.id, ingredientes)
+                if not success_ing:
+                    return True, plato, f"Plato creado, pero error en ingredientes: {msg_ing}"
+                    
+            return success, plato, msg
+            
         except ValueError:
             return False, None, f"Categoría inválida: {categoria}"
     
     # Actualizar
     def actualizar_plato(self, plato_id: int, nombre: str = None, precio: float = None,
                         categoria: str = None, descripcion: str = None,
-                        tiempo_preparacion: int = None):
-        """Actualizar plato"""
+                        tiempo_preparacion: int = None, ingredientes: list = None):
+        """Actualizar plato e ingredientes"""
         categoria_enum = None
         if categoria:
             try:
@@ -35,8 +44,16 @@ class PlatosController(BaseController):
             except ValueError:
                 return False, None, f"Categoría inválida: {categoria}"
         
-        return self.model.actualizar_plato(plato_id, nombre, precio, categoria_enum, 
+        success, plato, msg = self.model.actualizar_plato(plato_id, nombre, precio, categoria_enum, 
                                           descripcion, tiempo_preparacion)
+        
+        if success and ingredientes is not None:
+             # Actualizar ingredientes si la lista no es None (puede ser vacía [] para borrar todos)
+             success_ing, _, msg_ing = self.model.actualizar_ingredientes_plato(plato_id, ingredientes)
+             if not success_ing:
+                 return True, plato, f"Plato actualizado, error en ingredientes: {msg_ing}"
+                 
+        return success, plato, msg
     
     def cambiar_disponibilidad(self, plato_id: int, disponible: bool):
         """Cambiar disponibilidad"""
@@ -115,6 +132,23 @@ class PlatosController(BaseController):
         for ing in ingredientes:
             datos.append((ing.id, ing.nombre, f"${ing.precio_unitario:.2f}"))
         return True, datos, msg
+
+    def obtener_ingredientes_plato_completo(self, plato_id: int):
+        """Obtener ingredientes con detalles: [{'id', 'nombre', 'cantidad', 'unidad'}]"""
+        success, raw_data, msg = self.model.obtener_ingredientes_plato_completo(plato_id)
+        if not success:
+            return success, [], msg
+            
+        data = []
+        # raw_data es lista de (Ingrediente, cantidad, unidad)
+        for ing, cant, unid in raw_data:
+            data.append({
+                'id': ing.id,
+                'nombre': ing.nombre,
+                'cantidad': cant,
+                'unidad': unid
+            })
+        return True, data, msg
     
     # Eliminar
     def eliminar_plato(self, plato_id: int):

@@ -2,8 +2,9 @@
 Modelo de Negocio: Platos/Menú
 """
 from typing import List, Optional, Tuple
-from sqlalchemy.orm import Session
-from database.models import Plato, Ingrediente
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import delete, insert, select
+from database.models import Plato, Ingrediente, plato_ingrediente_association
 import config
 from utils.validators import validar_nombre, validar_precio, validar_descripcion
 from .base_model import BaseModel
@@ -171,7 +172,7 @@ class PlatosModel(BaseModel):
     def obtener_plato(self, plato_id: int) -> Tuple[bool, Optional[Plato], str]:
         """Obtener un plato por ID"""
         def _obtener(session):
-            return session.query(Plato).filter(Plato.id == plato_id).first()
+            return session.query(Plato).options(joinedload(Plato.ingredientes)).filter(Plato.id == plato_id).first()
         
         return self._obtener_con_manejo_errores(_obtener)
     
@@ -205,6 +206,69 @@ class PlatosModel(BaseModel):
             return QueriesManager.obtener_ingredientes_plato(session, plato_id)
         
         return self._obtener_con_manejo_errores(_obtener)
+
+    def obtener_ingredientes_plato_completo(self, plato_id: int) -> Tuple[bool, List[Tuple[Ingrediente, float, str]], str]:
+        """Obtener ingredientes con cantidad y unidad"""
+        def _obtener(session):
+            # Select explícito sobre la tabla de asociación + ingrediente
+            stmt = select(
+                Ingrediente, 
+                plato_ingrediente_association.c.cantidad_requerida,
+                plato_ingrediente_association.c.unidad
+            ).select_from(
+                plato_ingrediente_association
+            ).join(
+                Ingrediente, 
+                Ingrediente.id == plato_ingrediente_association.c.ingrediente_id
+            ).where(
+                plato_ingrediente_association.c.plato_id == plato_id
+            )
+            
+            result = session.execute(stmt).all()
+            return [(row[0], row[1], row[2]) for row in result]
+        
+        return self._obtener_con_manejo_errores(_obtener)
+
+    def actualizar_ingredientes_plato(self, plato_id: int, ingredientes: List[dict]) -> Tuple[bool, None, str]:
+        """Actualizar ingredientes (reemplazar todos) -> List[{'id': int, 'cantidad': float}]"""
+        def _actualizar(session):
+            # 1. Eliminar relaciones existentes
+            stmt_del = delete(plato_ingrediente_association).where(
+                plato_ingrediente_association.c.plato_id == plato_id
+            )
+            session.execute(stmt_del)
+            
+            # 2. Insertar nuevos
+            if ingredientes:
+                values = []
+                for item in ingredientes:
+                    # Validar existencia de ingrediente (opcional pero recomendado)
+                    ing_id = item['id']
+                    cant = float(item['cantidad'])
+                    # La unidad la tomamos del ingrediente original o la pasamos
+                    # Asumimos que la unidad es la del ingrediente base por simplicidad
+                    # O podemos pasarla explícitamente si el UI lo permite
+                    
+                    ing_obj = session.query(Ingrediente).get(ing_id)
+                    if not ing_obj:
+                        continue 
+                    
+                    unid = ing_obj.unidad # Usar unidad base del ingrediente
+                        
+                    values.append({
+                        'plato_id': plato_id,
+                        'ingrediente_id': ing_id,
+                        'cantidad_requerida': cant,
+                        'unidad': unid
+                    })
+                
+                if values:
+                    stmt_ins = insert(plato_ingrediente_association).values(values)
+                    session.execute(stmt_ins)
+            
+            return None
+            
+        return self._ejecutar_con_manejo_errores(_actualizar)
     
     def eliminar_plato(self, plato_id: int) -> Tuple[bool, None, str]:
         """Eliminar un plato"""
