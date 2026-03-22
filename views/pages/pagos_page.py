@@ -112,12 +112,201 @@ class PagosPage(ctk.CTkFrame):
             self.tabla_completados.agregar_filas(datos)
     
     def registrar_pago(self):
-        DialogUtils.mostrar_exito("Funcionalidad", "Registración de pago en progreso")
+        if not self.pago_seleccionado:
+            DialogUtils.mostrar_advertencia(
+                "Advertencia",
+                "Selecciona un pago pendiente"
+            )
+            return
+
+        self._abrir_dialogo_pago()
     
+
     def completar_pago(self):
         if not self.pago_seleccionado:
             DialogUtils.mostrar_advertencia("Advertencia", "Selecciona un pago")
             return
+
+        pago_id = self.pago_seleccionado[0]
+
+        success, _, msg = self.controller.completar_pago(pago_id)
+
+        if success:
+            DialogUtils.mostrar_exito("Éxito", "Pago completado correctamente")
+            self.refrescar_tablas()
+        else:
+            DialogUtils.mostrar_error("Error", msg)
+
+
+    def _abrir_dialogo_pago(self):
+        dialogo = ctk.CTkToplevel(self)
+        dialogo.title("Registrar Pago")
+        dialogo.geometry("350x400")
+        dialogo.configure(fg_color="white")
+        COLOR_NARANJA = "#ff8c00"
+
+        # -------- Tipo de pago --------
+        ctk.CTkLabel(
+        dialogo,
+        text="Tipo de Pago",
+        text_color="black").pack(pady=(10, 0))
+
+        tipo_pago_var = ctk.StringVar(value="Completo")
+
+        ctk.CTkRadioButton(
+            dialogo,
+            text="Pagar completo",
+            variable=tipo_pago_var,
+            value="Completo",
+            fg_color=COLOR_NARANJA,
+            hover_color="#e67600",
+            text_color="black"
+        ).pack(anchor="w", padx=20)
+
+        ctk.CTkRadioButton(
+            dialogo,
+            text="Dividir cuenta",
+            variable=tipo_pago_var,
+            value="Dividido",
+            fg_color=COLOR_NARANJA,
+            hover_color="#e67600",
+            text_color="black"
+        ).pack(anchor="w", padx=20)
+
+        # -------- Método de pago --------
+        ctk.CTkLabel(dialogo, text="Método de Pago").pack(pady=(15, 0))
+
+        metodos = self.controller.obtener_metodos_disponibles()
         
-        DialogUtils.mostrar_exito("Éxito", "Pago completado")
-        self.refrescar_tablas()
+        metodo_var = ctk.StringVar(value=metodos[0])
+
+        combo_metodo = ctk.CTkComboBox(
+            dialogo,
+            values=metodos,
+            variable=metodo_var,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            button_color=COLOR_NARANJA,
+            button_hover_color="#e67600",
+            text_color="black"
+        )
+        combo_metodo.pack(pady=5)
+
+        # -------- Monto --------
+        ctk.CTkLabel(dialogo, text="Monto a pagar").pack(pady=(15, 0))
+
+        entry_monto = ctk.CTkEntry(
+            dialogo,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            text_color="black"
+        )
+
+
+        entry_monto.pack(pady=5)
+
+        # -------- Propina --------
+        ctk.CTkLabel(dialogo, text="Propina (opcional)").pack(pady=(15, 0))
+
+        entry_propina = ctk.CTkEntry(
+            dialogo,
+            fg_color="white",
+            border_color=COLOR_NARANJA,
+            text_color="black"
+        )
+        entry_propina.pack(pady=5)
+
+        # -------- Botón confirmar --------
+        def confirmar():
+            if not self.pago_seleccionado:
+                DialogUtils.mostrar_advertencia("Advertencia", "Selecciona un pago primero")
+                return
+
+            pago_id = self.pago_seleccionado[0]
+            tipo_pago = tipo_pago_var.get()
+            metodo = metodo_var.get()
+            monto = entry_monto.get()
+            propina = entry_propina.get()
+
+            if not monto:
+                DialogUtils.mostrar_advertencia("Advertencia", "Ingresa el monto")
+                return
+
+            try:
+                monto = float(monto)
+                propina = float(propina) if propina else 0.0
+            except ValueError:
+                DialogUtils.mostrar_error("Error", "Monto o propina inválidos")
+                return
+
+            # -------------------------
+            # Obtener datos reales del pago
+            # -------------------------
+            success_pago, pago, msg = self.controller.obtener_pago(pago_id)
+            if not success_pago or not pago:
+                DialogUtils.mostrar_error("Error", "No se pudo obtener el pago")
+                return
+
+            # -------------------------
+            # Evitar pagar dos veces
+            # -------------------------
+            if pago.estado.value == "PAGADO":
+                DialogUtils.mostrar_advertencia("Advertencia", "Este pago ya está completado")
+                return
+
+            # -------------------------
+            # Procesar pago completo
+            # -------------------------
+            if tipo_pago == "Completo":
+                # Actualizar método primero
+                success, _, msg = self.controller.actualizar_pago(
+                    pago_id,
+                    metodo=metodo
+                )
+
+                if success:
+                    success, _, msg = self.controller.completar_pago(
+                        pago_id,
+                        cambio=propina
+                    )
+
+            # -------------------------
+            # Procesar pago parcial
+            # -------------------------
+            else:
+                if monto <= 0:
+                    DialogUtils.mostrar_error("Error", "El monto debe ser mayor a 0")
+                    return
+
+                success, _, msg = self.controller.actualizar_pago(
+                    pago_id,
+                    monto=monto,
+                    metodo=metodo
+                )
+
+            # -------------------------
+            # Resultado final
+            # -------------------------
+            if success:
+                DialogUtils.mostrar_exito("Éxito", "Pago procesado correctamente")
+                dialogo.destroy()
+                self.refrescar_tablas()
+            else:
+                DialogUtils.mostrar_error("Error", msg)
+
+
+        # -------- Botón confirmar --------
+        btn_confirmar = ctk.CTkButton(
+            dialogo,
+            text="Confirmar Pago",
+            command=confirmar,
+            fg_color=COLOR_NARANJA,
+            hover_color="#e67600",
+            text_color="black"
+        )
+
+        btn_confirmar.pack(
+            pady=20,
+            padx=20,
+            fill="x"
+        )
