@@ -481,7 +481,7 @@ class PagosPage(ctk.CTkFrame):
         mesa = pago.pedido.mesa.numero if pago.pedido and pago.pedido.mesa else "N/A"
 
         contenido = (
-            "====== RESTAURANTE PYTHON ======\n"
+            "====== SYSTEMA RESTAURANTE ======\n"
             f"Pago #: {pago.id}\n"
             f"Fecha: {pago.fecha_pago}\n"
             f"Mesa: {mesa}\n"
