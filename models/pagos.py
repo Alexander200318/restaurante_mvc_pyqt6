@@ -3,8 +3,8 @@ Modelo de Negocio: Pagos
 """
 from typing import List, Optional, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session, joinedload
-from database.models import Pago, Pedido, Mesa
+from sqlalchemy.orm import Session, joinedload, selectinload
+from database.models import Pago, Pedido, Mesa, DetallePedido
 from database.queries import QueriesManager
 import config
 from utils.validators import validar_precio
@@ -15,6 +15,18 @@ from sqlalchemy.orm import joinedload
 class PagosModel(BaseModel):
     """Lógica de negocio para Pagos"""
     
+    def actualizar_cliente_pago(self, pago_id: int, nuevo_cliente_id: int) -> Tuple[bool, Optional[Pago], str]:
+        """Actualizar el cliente asociado al pedido de un pago"""
+        def _actualizar(session):
+            pago = session.query(Pago).options(joinedload(Pago.pedido)).filter(Pago.id == pago_id).first()
+            if not pago: raise ValueError("Pago no encontrado")
+            if not pago.pedido: raise ValueError("Pago sin pedido asociado")
+            
+            pago.pedido.cliente_id = nuevo_cliente_id
+            return pago
+            
+        return self._ejecutar_con_manejo_errores(_actualizar)
+
     def registrar_pago(self, pedido_id: int, monto: float, metodo: config.PagoMetodo,
                       referencia: str = None, cambio: float = 0.0) -> Tuple[bool, Optional[Pago], str]:
         """Registrar un pago para un pedido"""
@@ -69,7 +81,8 @@ class PagosModel(BaseModel):
     
     def actualizar_pago(self, pago_id: int, monto: Optional[float] = None,
                        metodo: Optional[config.PagoMetodo] = None,
-                       referencia: Optional[str] = None) -> Tuple[bool, Optional[Pago], str]:
+                       referencia: Optional[str] = None,
+                       observaciones: Optional[str] = None) -> Tuple[bool, Optional[Pago], str]:
         """Actualizar datos de pago"""
         if monto is not None:
             es_valido, monto_validado, msg = validar_precio(str(monto))
@@ -85,12 +98,21 @@ class PagosModel(BaseModel):
             
             if monto_validado is not None:
                 pago.monto = monto_validado
+                # Actualizar estado si es pago parcial
+                if pago.estado != config.PagoEstado.PAGADO:
+                    if pago.monto > 0:
+                        pago.estado = config.PagoEstado.PARCIAL
+                    else:
+                        pago.estado = config.PagoEstado.PENDIENTE
             
             if metodo:
                 pago.metodo = metodo
             
             if referencia:
                 pago.referencia = referencia
+                
+            if observaciones is not None:
+                pago.observaciones = observaciones
             
             return pago
         
@@ -140,13 +162,6 @@ class PagosModel(BaseModel):
         
         return self._ejecutar_con_manejo_errores(_anular)
     
-    def obtener_pago(self, pago_id: int) -> Tuple[bool, Optional[Pago], str]:
-        """Obtener un pago por ID"""
-        def _obtener(session):
-            return session.query(Pago).filter(Pago.id == pago_id).first()
-        
-        return self._obtener_con_manejo_errores(_obtener)
-    
     def obtener_pago_por_pedido(self, pedido_id: int) -> Tuple[bool, Optional[Pago], str]:
         """Obtener pago de un pedido específico"""
         def _obtener(session):
@@ -159,7 +174,8 @@ class PagosModel(BaseModel):
         def _obtener(session):
             return session.query(Pago).options(
                 joinedload(Pago.pedido).joinedload(Pedido.cliente),
-                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+                joinedload(Pago.pedido).joinedload(Pedido.mesa),
+                joinedload(Pago.pedido).selectinload(Pedido.detalles)
             ).order_by(Pago.fecha_pago.desc()).all()
         
         return self._obtener_con_manejo_errores(_obtener)
@@ -169,7 +185,8 @@ class PagosModel(BaseModel):
         def _obtener(session):
             return session.query(Pago).options(
                 joinedload(Pago.pedido).joinedload(Pedido.cliente),
-                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+                joinedload(Pago.pedido).joinedload(Pedido.mesa),
+                joinedload(Pago.pedido).selectinload(Pedido.detalles)
             ).filter(
                 Pago.estado.in_([config.PagoEstado.PENDIENTE, config.PagoEstado.PARCIAL])
             ).all()
@@ -218,50 +235,12 @@ class PagosModel(BaseModel):
     
 
     def obtener_pago(self, pago_id: int) -> Tuple[bool, Optional[Pago], str]:
-        """Obtener un pago incluyendo los detalles del pedido para evitar DetachedInstanceError"""
+        """Obtener pago por ID con todas las relaciones"""
         def _obtener(session):
             return session.query(Pago).options(
                 joinedload(Pago.pedido).joinedload(Pedido.cliente),
                 joinedload(Pago.pedido).joinedload(Pedido.mesa),
-                joinedload(Pago.pedido).joinedload(Pedido.detalles)  # <- agregado
+                joinedload(Pago.pedido).selectinload(Pedido.detalles).joinedload(DetallePedido.plato)
             ).filter(Pago.id == pago_id).first()
 
         return self._obtener_con_manejo_errores(_obtener)
-    
-
-    def registrar_pago_parcial(self, pedido_id: int, monto: float, metodo: config.PagoMetodo):
-        """Registrar un pago parcial de un pedido"""
-        def _registrar(session):
-            pedido = session.query(Pedido).filter(Pedido.id == pedido_id).first()
-            if not pedido:
-                raise ValueError("Pedido no encontrado")
-
-            # Total ya pagado
-            total_pagado = sum([p.monto for p in pedido.pagos])
-            total_pedido = pedido.calcular_total()
-
-            if total_pagado + monto > total_pedido:
-                raise ValueError("El monto supera el total pendiente")
-
-            # Crear pago parcial
-            pago_parcial = Pago(
-                pedido_id=pedido_id,
-                monto=monto,
-                metodo=metodo,
-                estado=config.PagoEstado.PARCIAL,
-                fecha_pago=datetime.now()
-            )
-            session.add(pago_parcial)
-
-            # Si se completa el total, marcar todos los pagos como PAGADO
-            if total_pagado + monto >= total_pedido:
-                for p in pedido.pagos + [pago_parcial]:
-                    p.estado = config.PagoEstado.PAGADO
-                if pedido.mesa:
-                    pedido.mesa.estado = config.MesaEstado.LIBRE
-                if pedido.cliente:
-                    pedido.cliente.estado = config.ClienteEstado.PAGADO
-
-            return pago_parcial
-
-        return self._ejecutar_con_manejo_errores(_registrar)

@@ -40,6 +40,10 @@ class ClientesController(BaseController):
         """Obtener todos los clientes sin formatear"""
         return self.model.obtener_todos_clientes()
     
+    def buscar_por_cedula(self, cedula: str):
+        """Buscar cliente por cedula"""
+        return self.model.buscar_cliente_por_cedula(cedula)
+
     def obtener_todos_clientes_formateados(self):
         """Obtener todos los clientes formateados para tabla"""
         success, clientes, msg = self.model.obtener_todos_clientes()
@@ -84,4 +88,4 @@ class ClientesController(BaseController):
     # Eliminar
     def eliminar_cliente(self, cliente_id: int):
         """Eliminar cliente"""
-        return self.model.eliminar_cliente(cliente_id)
+        return self.model.eliminar_cliente(cliente_id)  

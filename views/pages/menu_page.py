@@ -329,7 +329,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
                     stock_actual = 0
                 
                 # Debug: imprimir para verificar
-                print(f"DEBUG: {item['nombre']} - Stock actual: {stock_actual}, Necesita: {item['cantidad']}")
                 
                 if stock_actual < item['cantidad']:
                     sin_stock.append({
@@ -580,14 +579,11 @@ class MenuPage(ctk.CTkFrame):
     
     def actualizar_tabla(self):
         """Forzar actualización completa de todos los platos verificando stock"""
-        print("DEBUG: Iniciando actualización manual de tabla")
         success, datos, msg = self.controller.obtener_todos_platos_formateados()
         
         if success:
-            print(f"DEBUG: {len(datos)} platos encontrados para verificar")
             # Verificar y actualizar estado de cada plato basado en stock
             for plato in datos:
-                print(f"DEBUG: Procesando plato: {plato[1]} (ID: {plato[0]})")
                 self._verificar_y_actualizar_estado_plato(plato[0])
             
             # Recargar datos actualizados
@@ -602,7 +598,6 @@ class MenuPage(ctk.CTkFrame):
                 
                 # Contar cuántos están disponibles después de la actualización
                 disponibles = sum(1 for p in datos if p[5] == "disponible")
-                print(f"DEBUG: Actualización completada - {disponibles} platos disponibles de {len(datos)}")
                 
                 DialogUtils.mostrar_exito("Actualización", f"Lista de platos actualizada. {disponibles} platos disponibles.")
             else:
@@ -988,7 +983,6 @@ class MenuPage(ctk.CTkFrame):
                     stock_actual = 0
                 
                 # Debug
-                print(f"DEBUG VERIFICACION: {ing['nombre']} - Stock actual: {stock_actual}, Necesita: {ing['cantidad']}")
                 
                 if stock_actual < ing['cantidad']:
                     todos_con_stock = False
@@ -996,13 +990,10 @@ class MenuPage(ctk.CTkFrame):
         
         # Actualizar estado del plato según disponibilidad de stock
         estado_actual = plato.estado.value
-        print(f"DEBUG: Plato {plato.nombre} - Estado actual: {estado_actual}, Todos con stock: {todos_con_stock}")
         
         if todos_con_stock and estado_actual != "disponible":
-            print(f"DEBUG: Cambiando {plato.nombre} a DISPONIBLE")
             self.controller.cambiar_disponibilidad(plato_id, True)
         elif not todos_con_stock and estado_actual == "disponible":
-            print(f"DEBUG: Cambiando {plato.nombre} a NO DISPONIBLE")
             self.controller.cambiar_disponibilidad(plato_id, False)
     
     def _on_plato_select(self, datos):
@@ -1038,10 +1029,8 @@ class MenuPage(ctk.CTkFrame):
         success, datos, msg = self.controller.obtener_todos_platos_formateados()
         
         if success:
-            print(f"DEBUG: Refrescando tabla - {len(datos)} platos encontrados")
             # Verificar estado de cada plato basado en stock
             for plato in datos:
-                print(f"DEBUG: Verificando plato ID {plato[0]}: {plato[1]}")
                 self._verificar_y_actualizar_estado_plato(plato[0])
             
             # Volver a obtener los datos actualizados
@@ -1051,7 +1040,6 @@ class MenuPage(ctk.CTkFrame):
                 self.pagina_actual = 1
                 self._actualizar_vista_tabla()
                 self._actualizar_metricas()
-                print(f"DEBUG: Tabla actualizada - {len(datos)} platos")
             else:
                 DialogUtils.mostrar_error("Error", msg)
         else:

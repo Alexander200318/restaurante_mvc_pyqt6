@@ -14,6 +14,10 @@ class PagosController(BaseController):
         self.model = PagosModel()
         self.clientes_model = ClientesModel()
     
+    def actualizar_cliente_pago(self, pago_id: int, cliente_id: int):
+        """Actualizar cliente del pago"""
+        return self.model.actualizar_cliente_pago(pago_id, cliente_id)
+
     # Crear/Registrar
     def registrar_pago(self, pedido_id: int, monto: float, metodo: str,
                       referencia: str = None, cambio: float = 0.0):
@@ -29,7 +33,7 @@ class PagosController(BaseController):
     
     # Actualizar
     def actualizar_pago(self, pago_id: int, monto: float = None,
-                       metodo: str = None, referencia: str = None):
+                       metodo: str = None, referencia: str = None, observaciones: str = None):
         """Actualizar pago"""
         metodo_enum = None
         if metodo:
@@ -38,7 +42,7 @@ class PagosController(BaseController):
             except ValueError:
                 return False, None, f"Método inválido: {metodo}"
         
-        return self.model.actualizar_pago(pago_id, monto, metodo_enum, referencia)
+        return self.model.actualizar_pago(pago_id, monto, metodo_enum, referencia, observaciones)
     
     def completar_pago(self, pago_id: int, cambio: float = 0.0):
         """Marcar como completado"""
@@ -140,6 +144,7 @@ class PagosController(BaseController):
     
 
 
+
     def calcular_propina_sugerida(self, monto: float) -> float:
         """
         Calcula la propina sugerida (10% del monto).
@@ -151,13 +156,3 @@ class PagosController(BaseController):
             return False, None, "Cédula vacía"
         
         return self.clientes_model.obtener_cliente_por_cedula(cedula)
-    
-
-    def registrar_pago_parcial(self, pedido_id: int, monto: float, metodo: str):
-        """Registrar pago parcial desde el controlador"""
-        try:
-            metodo_enum = config.PagoMetodo(metodo)
-            return self.model.registrar_pago_parcial(pedido_id, monto, metodo_enum)
-        except ValueError as e:
-            return False, None, str(e)
-    
