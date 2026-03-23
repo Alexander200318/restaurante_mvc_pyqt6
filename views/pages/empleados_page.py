@@ -1221,10 +1221,20 @@ class EmpleadosPage(ctk.CTkFrame):
             'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos, 'required': True},
             'telefono': {'label': '📱 Teléfono', 'type': 'phone', 'required': True},
             'email': {'label': '📧 Email', 'type': 'email', 'required': True},
-            'salario': {'label': '💰 Salario', 'type': 'number', 'required': True, 'min': 0}
+            'salario': {'label': '💰 Salario', 'type': 'number', 'required': True, 'min': 241}
         }
         
         def procesar(valores):
+            # Validación manual de salario
+            try:
+                salario_val = float(valores.get('salario', 0))
+                if salario_val < 241:
+                    DialogUtils.mostrar_error("Error de Salario", "El salario no puede ser menor a $241.00")
+                    return False
+            except ValueError:
+                DialogUtils.mostrar_error("Error de Formato", "El salario debe ser un número válido")
+                return False
+
             success, emp, msg = self.controller.crear_empleado(
                 valores.get('nombre'),
                 valores.get('puesto'),
@@ -1283,11 +1293,21 @@ class EmpleadosPage(ctk.CTkFrame):
             'puesto': {'label': '💼 Puesto', 'type': 'dropdown', 'options': puestos, 'value': puesto, 'required': True},
             'telefono': {'label': '📱 Teléfono', 'type': 'phone', 'value': telefono, 'required': True},
             'email': {'label': '📧 Email', 'type': 'email', 'value': email, 'required': True},
-            'salario': {'label': '💰 Salario', 'type': 'number', 'value': salario_num, 'required': True, 'min': 0},
+            'salario': {'label': '💰 Salario', 'type': 'number', 'value': salario_num, 'required': True, 'min': 241},
             'estado': {'label': '🔖 Estado', 'type': 'dropdown', 'options': estados, 'value': estado, 'required': True}
         }
         
         def procesar(valores):
+            # Validación manual de salario
+            try:
+                salario_val = float(valores.get('salario', 0))
+                if salario_val < 241:
+                    DialogUtils.mostrar_error("Error de Salario", "El salario no puede ser menor a $241.00")
+                    return False
+            except ValueError:
+                DialogUtils.mostrar_error("Error de Formato", "El salario debe ser un número válido")
+                return False
+
             # Actualizar datos básicos del empleado
             success, _, msg = self.controller.actualizar_empleado(
                 id_emp,
