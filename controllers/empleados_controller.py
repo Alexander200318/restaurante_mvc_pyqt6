@@ -2,6 +2,7 @@
 Controlador: Empleados
 """
 from models.empleados import EmpleadosModel
+from models.turnos import TurnosModel
 import config
 from .base_controller import BaseController
 
@@ -9,7 +10,12 @@ class EmpleadosController(BaseController):
     """Controlador para Empleados"""
     
     def __init__(self):
-        self.model = EmpleadosModel()
+        # Inicializamos el modelo primero para pasarlo al constructor base
+        model = EmpleadosModel()
+        super().__init__(model)
+        
+        # Modelo adicional para turnos
+        self.turnos_model = TurnosModel()
     
     # Crear
     def crear_empleado(self, nombre: str, puesto: str, telefono: str = None, 
@@ -48,13 +54,22 @@ class EmpleadosController(BaseController):
         return self.model.obtener_empleado(empleado_id)
     
     def obtener_todos_empleados_formateados(self):
-        """Obtener todos formateados"""
+        """Obtener todos formateados, incluyendo estado de turno activo"""
         success, empleados, msg = self.model.obtener_todos_empleados()
         if not success or not empleados:
             return success, [], msg
+
+        # Obtener turnos activos
+        _, turnos_activos, _ = self.turnos_model.obtener_turnos_activos()
+        if not turnos_activos:
+            turnos_activos = {}
         
         datos = []
         for emp in empleados:
+            # Verificar si tiene turno activo
+            inicio_turno = turnos_activos.get(emp.id)
+            timestamp_inicio = inicio_turno.timestamp() if inicio_turno else None
+            
             datos.append((
                 emp.id,
                 emp.nombre,
@@ -62,7 +77,8 @@ class EmpleadosController(BaseController):
                 emp.telefono or "—",
                 emp.email or "—",
                 f"${emp.salario:.2f}" if emp.salario else "—",
-                emp.estado.value
+                emp.estado.value,
+                timestamp_inicio  # Dato extra para calcular tiempo o estado
             ))
         return True, datos, msg
     
