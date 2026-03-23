@@ -1152,13 +1152,53 @@ class PagosPage(ctk.CTkFrame):
         
         mesa_str = f"Mesa {pago.pedido.mesa.numero}" if pago.pedido.mesa else "Sin Mesa"
         
-        monto_pagado = pago.monto or 0.0
-        propina = pago.cambio or 0.0 # Usamos cambio como propina en este modelo simplificado o deberia ser otro campo
-        # En el modelo actual, cambio se usa a veces como propina o vuelto. Asumamos que es el valor extra.
-        
+        # --- LÓGICA DE PROMOCIÓN (25% en el más vendido, SOLO ENTRADA o PLATO FUERTE) ---
+        descuento_promo = 0.0
+        platos_promos = set()
+        ranking = []
+        try:
+            if not hasattr(self, 'pedidos_controller'):
+                from controllers.pedidos_controller import PedidosController
+                self.pedidos_controller = PedidosController()
+            succ_r, ranking, _ = self.pedidos_controller.obtener_platos_mas_vendidos(10)
+            if succ_r and ranking:
+                for p in ranking:
+                    cat_str = str(p[3]).lower() if len(p) > 3 else ""
+                    if "plato_fuerte" in cat_str or "entrada" in cat_str:
+                        platos_promos.add(p[0])
+                        break  # Solo el más vendido de esas categorías
+        except Exception as e:
+            print(f"Error calculando promo ticket: {e}")
+
+        # Cálculo de detalle de platos y descuentos
+        detalles = []
+        subtotal_real = 0.0
+        for detalle in pago.pedido.detalles:
+            nombre = detalle.plato.nombre
+            categoria = str(getattr(detalle.plato, 'categoria', '')).lower()
+            cantidad = detalle.cantidad
+            precio_unit = detalle.precio_unitario
+            subtotal = detalle.subtotal
+            desc = 0.0
+            aplica_promo = nombre in platos_promos and ("plato_fuerte" in categoria or "entrada" in categoria)
+            if aplica_promo:
+                desc = subtotal * 0.25
+                descuento_promo += desc
+            detalles.append({
+                'nombre': nombre,
+                'categoria': categoria,
+                'cantidad': cantidad,
+                'precio_unit': precio_unit,
+                'subtotal': subtotal,
+                'descuento': desc
+            })
+            subtotal_real += subtotal
+
+        propina = pago.cambio or 0.0
+        total_final = subtotal_real - descuento_promo + propina
         metodo = pago.metodo.value if pago.metodo else "Efectivo"
 
-        # Formato Ticket
+        # Construcción del texto del Ticket
         texto = (
             "********************************\n"
             "      RESTAURANTE SABORES       \n"
@@ -1174,16 +1214,27 @@ class PagosPage(ctk.CTkFrame):
             f"C.I./RUC: {cedula_str}\n"
             "--------------------------------\n\n"
             "DETALLE DE PAGO:\n"
-            f"Monto Consumo:     ${monto_pagado:.2f}\n"
-            f"Propina/Servicio:  ${propina:.2f}\n"
+        )
+        texto += "Plato                Cant.  P.Unit   Subtotal   Desc.\n"
+        texto += "-----------------------------------------------------\n"
+        for d in detalles:
+            texto += f"{d['nombre'][:18]:18} {d['cantidad']:>3}   ${d['precio_unit']:>6.2f}  ${d['subtotal']:>7.2f}"
+            if d['descuento'] > 0:
+                texto += f"  -${d['descuento']:.2f}"
+            texto += "\n"
+        texto += "-----------------------------------------------------\n"
+        texto += f"Subtotal:           ${subtotal_real:.2f}\n"
+        texto += f"Propina/Servicio:   ${propina:.2f}\n"
+        if descuento_promo > 0:
+            texto += f"DESC. PROMO 25%:    -${descuento_promo:.2f}\n"
+        texto += (
             "--------------------------------\n"
-            f"TOTAL PAGADO:      ${(monto_pagado + propina):.2f}\n"
-            f"FORMA DE PAGO:     {metodo}\n\n"
+            f"TOTAL A PAGAR:      ${total_final:.2f}\n"
+            f"FORMA DE PAGO:      {metodo}\n\n"
             "********************************\n"
             "      ¡GRACIAS POR SU VISITA!   \n"
             "********************************"
         )
-        
         self._popup_ticket(texto)
 
     def _popup_ticket(self, texto):
