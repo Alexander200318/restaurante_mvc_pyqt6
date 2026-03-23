@@ -33,7 +33,14 @@ class MainWindow:
     def __init__(self, app: ctk.CTk):
         self.app = app
         self.app.title("Restaurante - Sistema de Gestión")
-        self.app.geometry("1400x900")
+        
+        # Obtener dimensiones de la pantalla
+        self.app.update_idletasks()
+        ancho_pantalla = self.app.winfo_screenwidth()
+        alto_pantalla = self.app.winfo_screenheight()
+        
+        # Establecer tamaño a pantalla completa
+        self.app.geometry(f"{ancho_pantalla}x{alto_pantalla}+0+0")
         
         # Config tema
         ctk.set_appearance_mode(config.APPEARANCE)
