@@ -7,26 +7,26 @@ from controllers.clientes_controller import ClientesController
 from views.components.dialog_utils import DialogUtils
 import config
 import datetime 
+
 class MesasPage(ctk.CTkFrame):
     """Módulo de Mesas con Grid Visual"""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, fg_color=config.COLORS["light_bg"], **kwargs)
-        
-        self.controller = MesasController()
-        self.controller_clientes = ClientesController()
-        self.mesa_seleccionada = None
-        self.grid_frame = None
-        self.mesa_cards = {}
-        
-        # Diccionario para almacenar el pedido activo de cada mesa
-        self.mesa_pedido_actual = {}
-        
-        # Crear cliente genérico global al inicio
-        self.cliente_generico = self._crear_cliente_generico_global()
-        
-        self._crear_ui()
-        self.refrescar_tabla()
+            super().__init__(parent, fg_color="#F3F4F6", **kwargs)
+            
+            self.controller = MesasController()
+            self.controller_clientes = ClientesController()
+            self.mesa_seleccionada = None
+            self.grid_frame = None
+            self.mesa_cards = {}
+            self.mesa_pedido_actual = {}
+            self.carrito_actual = {}
+            
+            # Crear cliente genérico
+            self.cliente_generico = self._crear_cliente_generico_global()
+            
+            self._crear_ui()
+            self.after(100, self.refrescar_tabla)
 
     def _crear_cliente_generico_global(self):
         """Crear un cliente genérico global para todos los pedidos"""
@@ -64,81 +64,59 @@ class MesasPage(ctk.CTkFrame):
         except Exception as e:
             print(f"❌ Error en _crear_cliente_generico_global: {e}")
             return None
+   
     def _crear_ui(self):
-        """Crear interfaz"""
-        # === HEADER ===
-        frame_header = ctk.CTkFrame(self, fg_color=config.COLORS["primary"], height=80)
-        frame_header.pack(side="top", fill="x", padx=0, pady=0)
-        frame_header.pack_propagate(False)
+            """Crear interfaz"""
+            # === HEADER ===
+            frame_header = ctk.CTkFrame(self, fg_color="#EA580C", height=80)
+            frame_header.pack(side="top", fill="x")
+            frame_header.pack_propagate(False)
+            
+            frame_header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
+            frame_header_content.pack(fill="both", expand=True, padx=30, pady=15)
+            
+            # Título
+            frame_titulo = ctk.CTkFrame(frame_header_content, fg_color="transparent")
+            frame_titulo.pack(side="left")
+            
+            titulo = ctk.CTkLabel(
+                frame_titulo,
+                text="🗺️ Mapa de Mesas",
+                text_color="white",
+                font=("Helvetica", 28, "bold")
+            )
+            titulo.pack(anchor="w")
+            
+            subtitulo = ctk.CTkLabel(
+                frame_titulo,
+                text="Gestiona el estado de las mesas y crea nuevos pedidos",
+                text_color="#FFEDD5",
+                font=("Helvetica", 11)
+            )
+            subtitulo.pack(anchor="w", pady=(3, 0))
+            
+            # Botón Nueva Mesa
+            btn_nueva = ctk.CTkButton(
+                frame_header_content,
+                text="➕ Nueva Mesa",
+                command=self.crear_mesa,
+                fg_color="#10B981",
+                hover_color="#059669",
+                text_color="white",
+                font=("Helvetica", 12, "bold"),
+                height=40,
+                width=120
+            )
+            btn_nueva.pack(side="right")
+            
+            # === CONTENIDO PRINCIPAL SCROLLABLE ===
+            self.scroll_container = ctk.CTkScrollableFrame(self, fg_color="transparent")
+            self.scroll_container.pack(fill="both", expand=True, padx=20, pady=20)
+            
+            # Grid para mesas
+            self.grid_frame = ctk.CTkFrame(self.scroll_container, fg_color="transparent")
+            self.grid_frame.pack(fill="both", expand=True)
         
-        # Contenedor para título y botones
-        frame_header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
-        frame_header_content.pack(fill="both", expand=True, padx=20, pady=15)
-        
-        # Lado izquierdo: Título
-        frame_titulo = ctk.CTkFrame(frame_header_content, fg_color="transparent")
-        frame_titulo.pack(side="left", fill="both", expand=True)
-        
-        titulo = ctk.CTkLabel(
-            frame_titulo,
-            text="🗺️ Mapa de Mesas",
-            text_color="white",
-            font=("Helvetica", 28, "bold")
-        )
-        titulo.pack(anchor="w")
-        
-        subtitulo = ctk.CTkLabel(
-            frame_titulo,
-            text="Gestiona el estado de las mesas y crea nuevos pedidos",
-            text_color="#E8EAED",
-            font=("Helvetica", 11)
-        )
-        subtitulo.pack(anchor="w", pady=(3, 0))
-        
-        # Lado derecho: Botón Nueva Mesa
-        btn_nueva = ctk.CTkButton(
-            frame_header_content,
-            text="➕ Nueva Mesa",
-            command=self.crear_mesa,
-            fg_color=config.COLORS["success"],
-            hover_color="#0E9F6E",
-            text_color="white",
-            font=("Helvetica", 12, "bold")
-        )
-        btn_nueva.pack(side="right", padx=10)
-        
-        # === CONTENIDO PRINCIPAL ===
-        frame_main = ctk.CTkFrame(self, fg_color=config.COLORS["light_bg"])
-        frame_main.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Frame scrollable para el grid
-        self.canvas = ctk.CTkCanvas(
-            frame_main,
-            bg=config.COLORS["light_bg"],
-            highlightthickness=0,
-            height=400
-        )
-        scrollbar = ctk.CTkScrollbar(frame_main, command=self.canvas.yview)
-        self.scrollable_frame = ctk.CTkFrame(
-            self.canvas,
-            fg_color=config.COLORS["light_bg"]
-        )
-        
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-        
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        
-        self.canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Grid frame para las mesas (4 columnas)
-        self.grid_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
-        self.grid_frame.pack(fill="both", expand=True)
-    
     def refrescar_tabla(self):
         """Refrescar grid de mesas"""
         # Limpiar grid anterior
@@ -195,19 +173,30 @@ class MesasPage(ctk.CTkFrame):
             self.grid_frame,
             fg_color=color_fondo,
             border_width=2,
-            border_color=color_borde
+            border_color=color_borde,
+            cursor="hand2"  # Cambiar cursor a mano para indicar que es clickeable
         )
         card_frame.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
-        card_frame.bind("<Button-1>", lambda e: self._on_mesa_click(mesa))
+        
+        # Crear función de click para toda la tarjeta
+        def on_card_click(event=None):
+            self._on_mesa_click(mesa)
+        
+        # Bindear click en el frame principal
+        card_frame.bind("<Button-1>", on_card_click)
         
         # Contenido de la tarjeta
         frame_content = ctk.CTkFrame(card_frame, fg_color="transparent")
         frame_content.pack(fill="both", expand=True, padx=15, pady=15)
+        # Hacer clickeable también el frame de contenido
+        frame_content.bind("<Button-1>", on_card_click)
         
         # === NÚMERO EN CÍRCULO ===
         circle_frame = ctk.CTkFrame(frame_content, fg_color="white", width=70, height=70)
         circle_frame.pack(pady=(0, 10))
         circle_frame.pack_propagate(False)
+        # Hacer clickeable el círculo
+        circle_frame.bind("<Button-1>", on_card_click)
         
         label_numero = ctk.CTkLabel(
             circle_frame,
@@ -216,6 +205,8 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 24, "bold")
         )
         label_numero.pack(expand=True)
+        # Hacer clickeable el número
+        label_numero.bind("<Button-1>", on_card_click)
         
         # === ESTADO ===
         label_estado = ctk.CTkLabel(
@@ -225,10 +216,14 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 13, "bold")
         )
         label_estado.pack(pady=5)
+        # Hacer clickeable el estado
+        label_estado.bind("<Button-1>", on_card_click)
         
         # === CAPACIDAD CON ICONO ===
         frame_capacidad = ctk.CTkFrame(frame_content, fg_color="transparent")
         frame_capacidad.pack(pady=(5, 0))
+        # Hacer clickeable el frame de capacidad
+        frame_capacidad.bind("<Button-1>", on_card_click)
         
         label_capacidad = ctk.CTkLabel(
             frame_capacidad,
@@ -237,6 +232,8 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 11)
         )
         label_capacidad.pack()
+        # Hacer clickeable la etiqueta de capacidad
+        label_capacidad.bind("<Button-1>", on_card_click)
         
         # Almacenar referencia
         self.mesa_cards[mesa.id] = {
@@ -248,7 +245,7 @@ class MesasPage(ctk.CTkFrame):
         # Añadir efecto hover
         card_frame.bind("<Enter>", lambda e: self._on_hover_enter(mesa.id))
         card_frame.bind("<Leave>", lambda e: self._on_hover_leave(mesa.id))
-    
+
     def _on_hover_enter(self, mesa_id):
         """Efecto hover al pasar ratón"""
         if mesa_id not in self.mesa_cards:
@@ -392,85 +389,6 @@ class MesasPage(ctk.CTkFrame):
         )
         btn_cerrar.pack(fill="x", pady=(5, 0))
         
-    def _mostrar_detalles_mesa2(self, mesa):
-        """Mostrar diálogo con detalles de la mesa"""
-        dialog = ctk.CTkToplevel()
-        dialog.title(f"Mesa {mesa.numero}")
-        dialog.geometry("350x300")
-        dialog.resizable(False, False)
-        dialog.attributes('-topmost', True)  # Mantener en el frente
-        dialog.grab_set()  # Hacerla modal
-        
-        # Frame para contenido
-        frame_content = ctk.CTkFrame(dialog, fg_color="transparent")
-        frame_content.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Estado
-        frame_estado = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
-        frame_estado.pack(fill="x", pady=10)
-        
-        label_estado_title = ctk.CTkLabel(
-            frame_estado,
-            text="Estado",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 10)
-        )
-        label_estado_title.pack(anchor="w", padx=12, pady=(8, 2))
-        
-        estado_color = config.COLORS.get(f"texto_{mesa.estado.value}", "#6B7280")
-        label_estado_value = ctk.CTkLabel(
-            frame_estado,
-            text=mesa.estado.value.capitalize(),
-            text_color=estado_color,
-            font=("Helvetica", 12, "bold")
-        )
-        label_estado_value.pack(anchor="w", padx=12, pady=(0, 8))
-        
-        # Capacidad
-        frame_capacidad = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
-        frame_capacidad.pack(fill="x", pady=10)
-        
-        label_capacidad_title = ctk.CTkLabel(
-            frame_capacidad,
-            text="Capacidad",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 10)
-        )
-        label_capacidad_title.pack(anchor="w", padx=12, pady=(8, 2))
-        
-        label_capacidad_value = ctk.CTkLabel(
-            frame_capacidad,
-            text=f"{mesa.capacidad} personas",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 12, "bold")
-        )
-        label_capacidad_value.pack(anchor="w", padx=12, pady=(0, 8))
-        
-        # Botón liberar si está ocupada
-        if mesa.estado.value.lower() in ["ocupada", "reservada"]:
-            # Botón para agregar más platos
-            btn_agregar = ctk.CTkButton(
-                frame_content,
-                text="➕ Agregar Platos",
-                command=lambda: self._agregar_platos_pedido_existente(mesa),
-                fg_color=config.COLORS["primary"],
-                hover_color="#D64B1E",
-                text_color="white",
-                font=("Helvetica", 12, "bold")
-            )
-            btn_agregar.pack(fill="x", pady=(0, 10))
-            
-            btn_liberar = ctk.CTkButton(
-                frame_content,
-                text="🔓 Liberar Mesa",
-                command=lambda: self._liberar_mesa(mesa, dialog),
-                fg_color="#EF4444",
-                hover_color="#DC2626",
-                text_color="white",
-                font=("Helvetica", 12, "bold")
-            )
-            btn_liberar.pack(fill="x", pady=10)
-    
     def _liberar_mesa(self, mesa, dialog):
         """Liberar una mesa - solo cambiar estado, mantener cliente genérico"""
         success, _, msg = self.controller.liberar_mesa(mesa.id)
@@ -484,6 +402,7 @@ class MesasPage(ctk.CTkFrame):
             self.refrescar_tabla()
         else:
             DialogUtils.mostrar_error("Error", msg)
+    
     def _mostrar_nuevo_pedido(self, mesa):
         """Mostrar dialog con sistema completo de nuevo pedido (React-like)"""
         from controllers.empleados_controller import EmpleadosController
@@ -1110,7 +1029,6 @@ class MesasPage(ctk.CTkFrame):
         else:
             print(f"Error al crear cliente temporal: {msg}")
             return None
-    
         
     def crear_mesa(self):
         """Muestra el diálogo para crear una nueva mesa sin vista previa"""
