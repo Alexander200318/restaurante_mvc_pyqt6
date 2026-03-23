@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from controllers.pagos_controller import PagosController
 from views.components.treeview_widget import TreeViewWidget
 from views.components.dialog_utils import DialogUtils
+from tkinter import Spinbox
 import config
 
 class PagosPage(ctk.CTkFrame):
@@ -173,7 +174,30 @@ class PagosPage(ctk.CTkFrame):
             hover_color="#e67600",
             text_color="black"
         ).pack(anchor="w", padx=20)
+        #---------------------------------#
+        #------------- Spinner -----------#
+        # -------- Número de partes para dividir --------
+        ctk.CTkLabel(dialogo, text="Dividir en partes:").pack(pady=(15, 0))
+        partes_var = ctk.IntVar(value=2)  # Valor por defecto 2
 
+        spin_partes = Spinbox(
+            dialogo,
+            from_=2,
+            to=10,
+            textvariable=partes_var,
+            width=5,
+            state="disabled"
+        )
+        spin_partes.pack(pady=5)
+        #---------------------------------#
+        def actualizar_spinbox(*args):
+            if tipo_pago_var.get() == "Dividido":
+                spin_partes.configure(state="normal")
+            else:
+                spin_partes.configure(state="disabled")
+
+        tipo_pago_var.trace_add("write", actualizar_spinbox)
+        # --------------------------------#
         # -------- Método de pago --------
         ctk.CTkLabel(dialogo, text="Método de Pago").pack(pady=(15, 0))
 
@@ -227,6 +251,20 @@ class PagosPage(ctk.CTkFrame):
 
 
 
+        # -------- Saldo restante --------
+        saldo_restante = 0.0
+        if self.pago_seleccionado:
+            pago_id = self.pago_seleccionado[0]
+            success, pago_obj, msg = self.controller.obtener_pago(pago_id)
+            if success and pago_obj and pago_obj.pedido:
+                total_pedido = pago_obj.pedido.calcular_total()
+                total_pagado = pago_obj.monto
+                saldo_restante = total_pedido - total_pagado
+
+        label_saldo = ctk.CTkLabel(dialogo, text=f"Saldo restante: ${saldo_restante:.2f}", text_color="black")
+        label_saldo.pack(pady=(5, 10))
+
+
         # -------- Label cliente --------
         label_cliente = ctk.CTkLabel(dialogo, text="", text_color="black")
         label_cliente.pack(pady=(5, 0))
@@ -264,7 +302,6 @@ class PagosPage(ctk.CTkFrame):
         )
         btn_buscar.pack(side="left")
                 
-
 
 
         # -------- Botón confirmar --------
@@ -314,33 +351,37 @@ class PagosPage(ctk.CTkFrame):
             # -------------------------
             # Procesar pago completo
             # -------------------------
+
             if tipo_pago == "Completo":
-                # Actualizar método primero
-                success, _, msg = self.controller.actualizar_pago(
-                    pago_id,
-                    metodo=metodo
-                )
-
+                success, _, msg = self.controller.actualizar_pago(pago_id, metodo=metodo)
                 if success:
-                    success, _, msg = self.controller.completar_pago(
-                        pago_id,
-                        cambio=propina
-                    )
+                    success, _, msg = self.controller.completar_pago(pago_id, cambio=propina)
 
             # -------------------------
-            # Procesar pago parcial
+            # Procesar pago parcial (Dividir cuenta)
             # -------------------------
-            else:
-                if monto <= 0:
-                    DialogUtils.mostrar_error("Error", "El monto debe ser mayor a 0")
+            else:  # Pago parcial / Dividir cuenta
+                try:
+                    monto = float(entry_monto.get())
+                    if monto <= 0:
+                        DialogUtils.mostrar_error("Error", "El monto debe ser mayor a 0")
+                        return
+                except ValueError:
+                    DialogUtils.mostrar_error("Error", "Monto inválido")
                     return
 
+                # Actualizar el pago parcial directamente
                 success, _, msg = self.controller.actualizar_pago(
                     pago_id,
                     monto=monto,
                     metodo=metodo
                 )
 
+                if success:
+                    DialogUtils.mostrar_exito("Éxito", "Pago parcial registrado correctamente")
+                    self.refrescar_tablas()
+                else:
+                    DialogUtils.mostrar_error("Error", msg)
             # -------------------------
             # Resultado final
             # -------------------------
@@ -351,16 +392,39 @@ class PagosPage(ctk.CTkFrame):
 
             else:
                 DialogUtils.mostrar_error("Error", msg)
-
+            #------------------------------------
+            # -------------------------
+            # Pago parcial / Dividir cuenta
+            # -------------------------
+            if tipo_pago == "Dividido":
+                num_partes = partes_var.get()
+                
+                # Obtener total restante
+                total_pedido = pago_obj.pedido.calcular_total()
+                monto_total_pagado = pago_obj.monto
+                saldo_restante = total_pedido - monto_total_pagado
+                
+                # Calcular monto por parte
+                monto_por_parte = round(saldo_restante / num_partes, 2)
+                
+                # Registrar pagos parciales
+                for i in range(num_partes):
+                    success, _, msg = self.controller.registrar_pago_parcial(
+                        pago_id=pago_id,
+                        monto=monto_por_parte,
+                        metodo=metodo
+                    )
+                
+                if success:
+                    DialogUtils.mostrar_exito(
+                        "Éxito",
+                        f"Cuenta dividida en {num_partes} partes de ${monto_por_parte:.2f} cada una"
+                    )
+                    self.refrescar_tablas()
         #-----------------------------------------------------
 
 
-
-
         #------------------------------------------------------
-
-
-
 
         # -------- Botón confirmar --------
         btn_confirmar = ctk.CTkButton(
@@ -477,3 +541,4 @@ class PagosPage(ctk.CTkFrame):
                 "PDF generado",
                 "La factura se guardó correctamente"
             )   
+    #--------------------------------------#

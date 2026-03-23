@@ -140,7 +140,6 @@ class PagosController(BaseController):
     
 
 
-
     def calcular_propina_sugerida(self, monto: float) -> float:
         """
         Calcula la propina sugerida (10% del monto).
@@ -152,4 +151,13 @@ class PagosController(BaseController):
             return False, None, "Cédula vacía"
         
         return self.clientes_model.obtener_cliente_por_cedula(cedula)
+    
+
+    def registrar_pago_parcial(self, pedido_id: int, monto: float, metodo: str):
+        """Registrar pago parcial desde el controlador"""
+        try:
+            metodo_enum = config.PagoMetodo(metodo)
+            return self.model.registrar_pago_parcial(pedido_id, monto, metodo_enum)
+        except ValueError as e:
+            return False, None, str(e)
     

@@ -218,10 +218,50 @@ class PagosModel(BaseModel):
     
 
     def obtener_pago(self, pago_id: int) -> Tuple[bool, Optional[Pago], str]:
+        """Obtener un pago incluyendo los detalles del pedido para evitar DetachedInstanceError"""
         def _obtener(session):
             return session.query(Pago).options(
                 joinedload(Pago.pedido).joinedload(Pedido.cliente),
-                joinedload(Pago.pedido).joinedload(Pedido.mesa)
+                joinedload(Pago.pedido).joinedload(Pedido.mesa),
+                joinedload(Pago.pedido).joinedload(Pedido.detalles)  # <- agregado
             ).filter(Pago.id == pago_id).first()
 
         return self._obtener_con_manejo_errores(_obtener)
+    
+
+    def registrar_pago_parcial(self, pedido_id: int, monto: float, metodo: config.PagoMetodo):
+        """Registrar un pago parcial de un pedido"""
+        def _registrar(session):
+            pedido = session.query(Pedido).filter(Pedido.id == pedido_id).first()
+            if not pedido:
+                raise ValueError("Pedido no encontrado")
+
+            # Total ya pagado
+            total_pagado = sum([p.monto for p in pedido.pagos])
+            total_pedido = pedido.calcular_total()
+
+            if total_pagado + monto > total_pedido:
+                raise ValueError("El monto supera el total pendiente")
+
+            # Crear pago parcial
+            pago_parcial = Pago(
+                pedido_id=pedido_id,
+                monto=monto,
+                metodo=metodo,
+                estado=config.PagoEstado.PARCIAL,
+                fecha_pago=datetime.now()
+            )
+            session.add(pago_parcial)
+
+            # Si se completa el total, marcar todos los pagos como PAGADO
+            if total_pagado + monto >= total_pedido:
+                for p in pedido.pagos + [pago_parcial]:
+                    p.estado = config.PagoEstado.PAGADO
+                if pedido.mesa:
+                    pedido.mesa.estado = config.MesaEstado.LIBRE
+                if pedido.cliente:
+                    pedido.cliente.estado = config.ClienteEstado.PAGADO
+
+            return pago_parcial
+
+        return self._ejecutar_con_manejo_errores(_registrar)
