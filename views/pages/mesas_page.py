@@ -4,6 +4,8 @@ Página: Gestión de Mesas - Diseño Grid Visual React
 import customtkinter as ctk
 from controllers.mesas_controller import MesasController
 from controllers.clientes_controller import ClientesController
+from controllers.platos_controller import PlatosController
+from controllers.ingredientes_controller import IngredientesController
 from views.components.dialog_utils import DialogUtils
 import config
 import datetime 
@@ -676,9 +678,85 @@ class MesasPage(ctk.CTkFrame):
             if idx + 1 < len(platos_categoria):
                 plato_der = platos_categoria[idx + 1]
                 self._crear_card_plato(row_frame, plato_der, carrito_items)
+        
+        # Guardar referencias para actualizar luego
+        self.frame_productos_actual = frame_productos
+        self.platos_actual = platos
+    
+    def _obtener_ingredientes_plato(self, plato_id):
+        """Obtener ingredientes requeridos de un plato con sus cantidades"""
+        controller_platos = PlatosController()
+        success, ingredientes_info, msg = controller_platos.model.obtener_ingredientes_plato_completo(plato_id)
+        
+        if success and ingredientes_info:
+            return ingredientes_info
+        return []
+    
+    def _calcular_stock_disponible(self, ingrediente_id, carrito_items):
+        """Calcular stock disponible considerando lo que ya está en el carrito"""
+        controller_ing = IngredientesController()
+        success, ingrediente, msg = controller_ing.obtener_ingrediente(ingrediente_id)
+        
+        if not success:
+            return 0
+        
+        stock_actual = ingrediente.cantidad
+        
+        # Restar lo que ya está en el carrito
+        for plato_id, item in carrito_items.items():
+            cantidad_plato = item['cantidad']
+            ingredientes_plato = self._obtener_ingredientes_plato(item['plato'].id)
+            
+            # Buscar este ingrediente en los ingredientes del plato
+            for ing, cant_requerida, unidad in ingredientes_plato:
+                if ing.id == ingrediente_id:
+                    stock_actual -= (cant_requerida * cantidad_plato)
+                    break
+        
+        return stock_actual
+    
+    def _verificar_stock_ingredientes(self, plato, carrito_items):
+        """Verificar si hay suficientes ingredientes para agregar este plato"""
+        ingredientes_plato = self._obtener_ingredientes_plato(plato.id)
+        
+        if not ingredientes_plato:
+            return True, "✓ Disponible"
+        
+        ingredientes_faltantes = []
+        
+        for ingrediente, cantidad_requerida, unidad in ingredientes_plato:
+            stock_disponible = self._calcular_stock_disponible(ingrediente.id, carrito_items)
+            
+            if stock_disponible < cantidad_requerida:
+                falta = cantidad_requerida - stock_disponible
+                ingredientes_faltantes.append(
+                    f"{ingrediente.nombre}: faltan {falta:.1f} {unidad}"
+                )
+        
+        if ingredientes_faltantes:
+            msg = "Ingredientes insuficientes:\n" + "\n".join(ingredientes_faltantes)
+            return False, msg
+        
+        return True, "✓ Disponible"
+    
+    def _actualizar_productos_visual(self, frame_productos, platos, carrito_items):
+        """Actualizar visualización de productos cuando cambia el carrito"""
+        # Volver a dibujar todos los productos con estado actualizado
+        for widget in frame_productos.winfo_children():
+            widget.destroy()
+        
+        # Obtener categoría actual (todas si no hay selector)
+        categ_text = "Entrada"  # Default
+        self._mostrar_productos_categoria(categ_text, frame_productos, platos, carrito_items)
     
     def _crear_card_plato(self, parent, plato, carrito_items):
         """Crear un card interactivo para un plato"""
+        # Obtener ingredientes del plato
+        ingredientes_info = self._obtener_ingredientes_plato(plato.id)
+        
+        # Verificar si hay suficientes ingredientes
+        tiene_ingredientes, msg_ingredientes = self._verificar_stock_ingredientes(plato, carrito_items)
+        
         # Card del producto como frame
         card_frame = ctk.CTkFrame(
             parent,
@@ -691,13 +769,18 @@ class MesasPage(ctk.CTkFrame):
         
         # Función del click
         def on_click(event=None):
-            self._agregar_al_carrito(plato, carrito_items)
+            if tiene_ingredientes:
+                self._agregar_al_carrito(plato, carrito_items)
+                self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
+            else:
+                DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg_ingredientes)
         
         # Funciones para hover effect
         def on_enter(event=None):
-            card_frame.configure(fg_color="#F3F4F6")
-            card_frame.configure(border_color=config.COLORS["primary"])
-            card_frame.configure(border_width=2)
+            if tiene_ingredientes:
+                card_frame.configure(fg_color="#F3F4F6")
+                card_frame.configure(border_color=config.COLORS["primary"])
+                card_frame.configure(border_width=2)
         
         def on_leave(event=None):
             card_frame.configure(fg_color="white")
@@ -705,46 +788,77 @@ class MesasPage(ctk.CTkFrame):
             card_frame.configure(border_width=1)
         
         # Bindear eventos de clic en el frame
-        card_frame.bind("<Button-1>", on_click)
-        card_frame.bind("<Enter>", on_enter)
-        card_frame.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            card_frame.bind("<Button-1>", on_click)
+            card_frame.bind("<Enter>", on_enter)
+            card_frame.bind("<Leave>", on_leave)
         
         # Content dentro del frame
         content = ctk.CTkFrame(card_frame, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=12, pady=12)
         
         # Bindear también en el content para que funcione el click
-        content.bind("<Button-1>", on_click)
-        content.bind("<Enter>", on_enter)
-        content.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            content.bind("<Button-1>", on_click)
+            content.bind("<Enter>", on_enter)
+            content.bind("<Leave>", on_leave)
         
         # Nombre
         name_label = ctk.CTkLabel(
             content,
             text=plato.nombre,
-            text_color=config.COLORS["text_dark"],
+            text_color=config.COLORS["text_dark"] if tiene_ingredientes else "#9CA3AF",
             font=("Helvetica", 11, "bold"),
             wraplength=140
         )
         name_label.pack(anchor="w", pady=(0, 8))
-        name_label.bind("<Button-1>", on_click)
-        name_label.bind("<Enter>", on_enter)
-        name_label.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            name_label.bind("<Button-1>", on_click)
+            name_label.bind("<Enter>", on_enter)
+            name_label.bind("<Leave>", on_leave)
         
         # Precio
         price_label = ctk.CTkLabel(
             content,
             text=f"${plato.precio:.2f}",
-            text_color=config.COLORS["primary"],
+            text_color=config.COLORS["primary"] if tiene_ingredientes else "#D1D5DB",
             font=("Helvetica", 13, "bold")
         )
-        price_label.pack(anchor="w")
-        price_label.bind("<Button-1>", on_click)
-        price_label.bind("<Enter>", on_enter)
-        price_label.bind("<Leave>", on_leave)
+        price_label.pack(anchor="w", pady=(0, 6))
+        if tiene_ingredientes:
+            price_label.bind("<Button-1>", on_click)
+            price_label.bind("<Enter>", on_enter)
+            price_label.bind("<Leave>", on_leave)
+        
+        # Mostrar estado de ingredientes
+        if not tiene_ingredientes:
+            estado_label = ctk.CTkLabel(
+                content,
+                text="❌ Sin ingredientes",
+                text_color="#EF4444",
+                font=("Helvetica", 9),
+                wraplength=140
+            )
+            estado_label.pack(anchor="w")
+            card_frame.configure(fg_color="#FEF2F2", border_color="#FECACA")
+        else:
+            estado_label = ctk.CTkLabel(
+                content,
+                text="✓ Disponible",
+                text_color="#10B981",
+                font=("Helvetica", 9)
+            )
+            estado_label.pack(anchor="w")
     
     def _agregar_al_carrito(self, plato, carrito_items):
-        """Agregar plato al carrito"""
+        """Agregar plato al carrito con validación de stock"""
+        # Verificar que hay ingredientes disponibles
+        tiene_ingredientes, msg = self._verificar_stock_ingredientes(plato, carrito_items)
+        
+        if not tiene_ingredientes:
+            DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg)
+            return False
+        
         if plato.id in carrito_items:
             carrito_items[plato.id]['cantidad'] += 1
         else:
@@ -754,9 +868,10 @@ class MesasPage(ctk.CTkFrame):
             }
         
         self._actualizar_carrito_visual(carrito_items)
+        return True
     
     def _actualizar_carrito_visual(self, carrito_items):
-        """Actualizar visualización del carrito"""
+        """Actualizar visualización del carrito con info de ingredientes"""
         # Limpiar carrito anterior
         for widget in self.frame_carrito_actual.winfo_children():
             widget.destroy()
@@ -814,6 +929,25 @@ class MesasPage(ctk.CTkFrame):
                 font=("Helvetica", 9)
             )
             price_label.pack(anchor="e", side="right")
+            
+            # Información de ingredientes
+            ingredientes_plato = self._obtener_ingredientes_plato(plato.id)
+            if ingredientes_plato:
+                ingredientes_frame = ctk.CTkFrame(content, fg_color="transparent")
+                ingredientes_frame.pack(fill="x", pady=(0, 6))
+                
+                for ingrediente, cant_requerida, unidad in ingredientes_plato:
+                    stock_disp = self._calcular_stock_disponible(ingrediente.id, carrito_items)
+                    cant_necesaria = cant_requerida * cantidad
+                    
+                    color_ing = "#10B981" if stock_disp >= cant_requerida else "#EF4444"
+                    ing_label = ctk.CTkLabel(
+                        ingredientes_frame,
+                        text=f"{ingrediente.nombre}: {stock_disp:.1f}/{cant_necesaria:.1f} {unidad}",
+                        text_color=color_ing,
+                        font=("Helvetica", 8)
+                    )
+                    ing_label.pack(anchor="w")
             
             # Controles cantidad y delete
             footer = ctk.CTkFrame(content, fg_color="transparent")
@@ -882,9 +1016,18 @@ class MesasPage(ctk.CTkFrame):
         self.label_total_actual.configure(text=f"${total:.2f}")
     
     def _cambiar_cantidad(self, plato_id, delta, carrito_items):
-        """Cambiar cantidad de un item"""
+        """Cambiar cantidad de un item con validación de stock"""
         if plato_id not in carrito_items:
             return
+        
+        # Si estamos aumentando, validar que hay ingredientes
+        if delta > 0:
+            plato = carrito_items[plato_id]['plato']
+            tiene_ingredientes, msg = self._verificar_stock_ingredientes(plato, carrito_items)
+            
+            if not tiene_ingredientes:
+                DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg)
+                return
         
         carrito_items[plato_id]['cantidad'] += delta
         
@@ -892,6 +1035,10 @@ class MesasPage(ctk.CTkFrame):
             del carrito_items[plato_id]
         
         self._actualizar_carrito_visual(carrito_items)
+        
+        # Actualizar visualización de productos
+        if hasattr(self, 'frame_productos_actual'):
+            self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
     
     def _eliminar_del_carrito(self, plato_id, carrito_items):
         """Eliminar item del carrito"""
@@ -899,6 +1046,10 @@ class MesasPage(ctk.CTkFrame):
             del carrito_items[plato_id]
         
         self._actualizar_carrito_visual(carrito_items)
+        
+        # Actualizar visualización de productos
+        if hasattr(self, 'frame_productos_actual'):
+            self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
   
     def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
         """Procesar y crear el nuevo pedido - Usando cliente genérico global"""
