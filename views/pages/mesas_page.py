@@ -4,29 +4,31 @@ Página: Gestión de Mesas - Diseño Grid Visual React
 import customtkinter as ctk
 from controllers.mesas_controller import MesasController
 from controllers.clientes_controller import ClientesController
+from controllers.platos_controller import PlatosController
+from controllers.ingredientes_controller import IngredientesController
 from views.components.dialog_utils import DialogUtils
 import config
 import datetime 
+
 class MesasPage(ctk.CTkFrame):
     """Módulo de Mesas con Grid Visual"""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, fg_color=config.COLORS["light_bg"], **kwargs)
-        
-        self.controller = MesasController()
-        self.controller_clientes = ClientesController()
-        self.mesa_seleccionada = None
-        self.grid_frame = None
-        self.mesa_cards = {}
-        
-        # Diccionario para almacenar el pedido activo de cada mesa
-        self.mesa_pedido_actual = {}
-        
-        # Crear cliente genérico global al inicio
-        self.cliente_generico = self._crear_cliente_generico_global()
-        
-        self._crear_ui()
-        self.refrescar_tabla()
+            super().__init__(parent, fg_color="#F3F4F6", **kwargs)
+            
+            self.controller = MesasController()
+            self.controller_clientes = ClientesController()
+            self.mesa_seleccionada = None
+            self.grid_frame = None
+            self.mesa_cards = {}
+            self.mesa_pedido_actual = {}
+            self.carrito_actual = {}
+            
+            # Crear cliente genérico
+            self.cliente_generico = self._crear_cliente_generico_global()
+            
+            self._crear_ui()
+            self.after(100, self.refrescar_tabla)
 
     def _crear_cliente_generico_global(self):
         """Crear un cliente genérico global para todos los pedidos"""
@@ -64,81 +66,59 @@ class MesasPage(ctk.CTkFrame):
         except Exception as e:
             print(f"❌ Error en _crear_cliente_generico_global: {e}")
             return None
+   
     def _crear_ui(self):
-        """Crear interfaz"""
-        # === HEADER ===
-        frame_header = ctk.CTkFrame(self, fg_color=config.COLORS["primary"], height=80)
-        frame_header.pack(side="top", fill="x", padx=0, pady=0)
-        frame_header.pack_propagate(False)
+            """Crear interfaz"""
+            # === HEADER ===
+            frame_header = ctk.CTkFrame(self, fg_color="#EA580C", height=80)
+            frame_header.pack(side="top", fill="x")
+            frame_header.pack_propagate(False)
+            
+            frame_header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
+            frame_header_content.pack(fill="both", expand=True, padx=30, pady=15)
+            
+            # Título
+            frame_titulo = ctk.CTkFrame(frame_header_content, fg_color="transparent")
+            frame_titulo.pack(side="left")
+            
+            titulo = ctk.CTkLabel(
+                frame_titulo,
+                text="🗺️ Mapa de Mesas",
+                text_color="white",
+                font=("Helvetica", 28, "bold")
+            )
+            titulo.pack(anchor="w")
+            
+            subtitulo = ctk.CTkLabel(
+                frame_titulo,
+                text="Gestiona el estado de las mesas y crea nuevos pedidos",
+                text_color="#FFEDD5",
+                font=("Helvetica", 11)
+            )
+            subtitulo.pack(anchor="w", pady=(3, 0))
+            
+            # Botón Nueva Mesa
+            btn_nueva = ctk.CTkButton(
+                frame_header_content,
+                text="➕ Nueva Mesa",
+                command=self.crear_mesa,
+                fg_color="#10B981",
+                hover_color="#059669",
+                text_color="white",
+                font=("Helvetica", 12, "bold"),
+                height=40,
+                width=120
+            )
+            btn_nueva.pack(side="right")
+            
+            # === CONTENIDO PRINCIPAL SCROLLABLE ===
+            self.scroll_container = ctk.CTkScrollableFrame(self, fg_color="transparent")
+            self.scroll_container.pack(fill="both", expand=True, padx=20, pady=20)
+            
+            # Grid para mesas
+            self.grid_frame = ctk.CTkFrame(self.scroll_container, fg_color="transparent")
+            self.grid_frame.pack(fill="both", expand=True)
         
-        # Contenedor para título y botones
-        frame_header_content = ctk.CTkFrame(frame_header, fg_color="transparent")
-        frame_header_content.pack(fill="both", expand=True, padx=20, pady=15)
-        
-        # Lado izquierdo: Título
-        frame_titulo = ctk.CTkFrame(frame_header_content, fg_color="transparent")
-        frame_titulo.pack(side="left", fill="both", expand=True)
-        
-        titulo = ctk.CTkLabel(
-            frame_titulo,
-            text="🗺️ Mapa de Mesas",
-            text_color="white",
-            font=("Helvetica", 28, "bold")
-        )
-        titulo.pack(anchor="w")
-        
-        subtitulo = ctk.CTkLabel(
-            frame_titulo,
-            text="Gestiona el estado de las mesas y crea nuevos pedidos",
-            text_color="#E8EAED",
-            font=("Helvetica", 11)
-        )
-        subtitulo.pack(anchor="w", pady=(3, 0))
-        
-        # Lado derecho: Botón Nueva Mesa
-        btn_nueva = ctk.CTkButton(
-            frame_header_content,
-            text="➕ Nueva Mesa",
-            command=self.crear_mesa,
-            fg_color=config.COLORS["success"],
-            hover_color="#0E9F6E",
-            text_color="white",
-            font=("Helvetica", 12, "bold")
-        )
-        btn_nueva.pack(side="right", padx=10)
-        
-        # === CONTENIDO PRINCIPAL ===
-        frame_main = ctk.CTkFrame(self, fg_color=config.COLORS["light_bg"])
-        frame_main.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Frame scrollable para el grid
-        self.canvas = ctk.CTkCanvas(
-            frame_main,
-            bg=config.COLORS["light_bg"],
-            highlightthickness=0,
-            height=400
-        )
-        scrollbar = ctk.CTkScrollbar(frame_main, command=self.canvas.yview)
-        self.scrollable_frame = ctk.CTkFrame(
-            self.canvas,
-            fg_color=config.COLORS["light_bg"]
-        )
-        
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-        
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        
-        self.canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Grid frame para las mesas (4 columnas)
-        self.grid_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
-        self.grid_frame.pack(fill="both", expand=True)
-    
     def refrescar_tabla(self):
         """Refrescar grid de mesas"""
         # Limpiar grid anterior
@@ -195,19 +175,30 @@ class MesasPage(ctk.CTkFrame):
             self.grid_frame,
             fg_color=color_fondo,
             border_width=2,
-            border_color=color_borde
+            border_color=color_borde,
+            cursor="hand2"  # Cambiar cursor a mano para indicar que es clickeable
         )
         card_frame.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
-        card_frame.bind("<Button-1>", lambda e: self._on_mesa_click(mesa))
+        
+        # Crear función de click para toda la tarjeta
+        def on_card_click(event=None):
+            self._on_mesa_click(mesa)
+        
+        # Bindear click en el frame principal
+        card_frame.bind("<Button-1>", on_card_click)
         
         # Contenido de la tarjeta
         frame_content = ctk.CTkFrame(card_frame, fg_color="transparent")
         frame_content.pack(fill="both", expand=True, padx=15, pady=15)
+        # Hacer clickeable también el frame de contenido
+        frame_content.bind("<Button-1>", on_card_click)
         
         # === NÚMERO EN CÍRCULO ===
         circle_frame = ctk.CTkFrame(frame_content, fg_color="white", width=70, height=70)
         circle_frame.pack(pady=(0, 10))
         circle_frame.pack_propagate(False)
+        # Hacer clickeable el círculo
+        circle_frame.bind("<Button-1>", on_card_click)
         
         label_numero = ctk.CTkLabel(
             circle_frame,
@@ -216,6 +207,8 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 24, "bold")
         )
         label_numero.pack(expand=True)
+        # Hacer clickeable el número
+        label_numero.bind("<Button-1>", on_card_click)
         
         # === ESTADO ===
         label_estado = ctk.CTkLabel(
@@ -225,10 +218,14 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 13, "bold")
         )
         label_estado.pack(pady=5)
+        # Hacer clickeable el estado
+        label_estado.bind("<Button-1>", on_card_click)
         
         # === CAPACIDAD CON ICONO ===
         frame_capacidad = ctk.CTkFrame(frame_content, fg_color="transparent")
         frame_capacidad.pack(pady=(5, 0))
+        # Hacer clickeable el frame de capacidad
+        frame_capacidad.bind("<Button-1>", on_card_click)
         
         label_capacidad = ctk.CTkLabel(
             frame_capacidad,
@@ -237,6 +234,8 @@ class MesasPage(ctk.CTkFrame):
             font=("Helvetica", 11)
         )
         label_capacidad.pack()
+        # Hacer clickeable la etiqueta de capacidad
+        label_capacidad.bind("<Button-1>", on_card_click)
         
         # Almacenar referencia
         self.mesa_cards[mesa.id] = {
@@ -248,7 +247,7 @@ class MesasPage(ctk.CTkFrame):
         # Añadir efecto hover
         card_frame.bind("<Enter>", lambda e: self._on_hover_enter(mesa.id))
         card_frame.bind("<Leave>", lambda e: self._on_hover_leave(mesa.id))
-    
+
     def _on_hover_enter(self, mesa_id):
         """Efecto hover al pasar ratón"""
         if mesa_id not in self.mesa_cards:
@@ -392,85 +391,6 @@ class MesasPage(ctk.CTkFrame):
         )
         btn_cerrar.pack(fill="x", pady=(5, 0))
         
-    def _mostrar_detalles_mesa2(self, mesa):
-        """Mostrar diálogo con detalles de la mesa"""
-        dialog = ctk.CTkToplevel()
-        dialog.title(f"Mesa {mesa.numero}")
-        dialog.geometry("350x300")
-        dialog.resizable(False, False)
-        dialog.attributes('-topmost', True)  # Mantener en el frente
-        dialog.grab_set()  # Hacerla modal
-        
-        # Frame para contenido
-        frame_content = ctk.CTkFrame(dialog, fg_color="transparent")
-        frame_content.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Estado
-        frame_estado = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
-        frame_estado.pack(fill="x", pady=10)
-        
-        label_estado_title = ctk.CTkLabel(
-            frame_estado,
-            text="Estado",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 10)
-        )
-        label_estado_title.pack(anchor="w", padx=12, pady=(8, 2))
-        
-        estado_color = config.COLORS.get(f"texto_{mesa.estado.value}", "#6B7280")
-        label_estado_value = ctk.CTkLabel(
-            frame_estado,
-            text=mesa.estado.value.capitalize(),
-            text_color=estado_color,
-            font=("Helvetica", 12, "bold")
-        )
-        label_estado_value.pack(anchor="w", padx=12, pady=(0, 8))
-        
-        # Capacidad
-        frame_capacidad = ctk.CTkFrame(frame_content, fg_color="#F3F4F6", corner_radius=8)
-        frame_capacidad.pack(fill="x", pady=10)
-        
-        label_capacidad_title = ctk.CTkLabel(
-            frame_capacidad,
-            text="Capacidad",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 10)
-        )
-        label_capacidad_title.pack(anchor="w", padx=12, pady=(8, 2))
-        
-        label_capacidad_value = ctk.CTkLabel(
-            frame_capacidad,
-            text=f"{mesa.capacidad} personas",
-            text_color=config.COLORS["text_dark"],
-            font=("Helvetica", 12, "bold")
-        )
-        label_capacidad_value.pack(anchor="w", padx=12, pady=(0, 8))
-        
-        # Botón liberar si está ocupada
-        if mesa.estado.value.lower() in ["ocupada", "reservada"]:
-            # Botón para agregar más platos
-            btn_agregar = ctk.CTkButton(
-                frame_content,
-                text="➕ Agregar Platos",
-                command=lambda: self._agregar_platos_pedido_existente(mesa),
-                fg_color=config.COLORS["primary"],
-                hover_color="#D64B1E",
-                text_color="white",
-                font=("Helvetica", 12, "bold")
-            )
-            btn_agregar.pack(fill="x", pady=(0, 10))
-            
-            btn_liberar = ctk.CTkButton(
-                frame_content,
-                text="🔓 Liberar Mesa",
-                command=lambda: self._liberar_mesa(mesa, dialog),
-                fg_color="#EF4444",
-                hover_color="#DC2626",
-                text_color="white",
-                font=("Helvetica", 12, "bold")
-            )
-            btn_liberar.pack(fill="x", pady=10)
-    
     def _liberar_mesa(self, mesa, dialog):
         """Liberar una mesa - solo cambiar estado, mantener cliente genérico"""
         success, _, msg = self.controller.liberar_mesa(mesa.id)
@@ -484,6 +404,7 @@ class MesasPage(ctk.CTkFrame):
             self.refrescar_tabla()
         else:
             DialogUtils.mostrar_error("Error", msg)
+    
     def _mostrar_nuevo_pedido(self, mesa):
         """Mostrar dialog con sistema completo de nuevo pedido (React-like)"""
         from controllers.empleados_controller import EmpleadosController
@@ -503,7 +424,7 @@ class MesasPage(ctk.CTkFrame):
         # Crear dialog
         dialog = ctk.CTkToplevel()
         dialog.title(f"Nuevo Pedido - Mesa {mesa.numero}")
-        dialog.geometry("900x550")
+        dialog.geometry("1200x700")
         dialog.resizable(True, True)
         dialog.attributes('-topmost', True)  # Mantener en el frente
         dialog.grab_set()  # Hacerla modal
@@ -757,9 +678,85 @@ class MesasPage(ctk.CTkFrame):
             if idx + 1 < len(platos_categoria):
                 plato_der = platos_categoria[idx + 1]
                 self._crear_card_plato(row_frame, plato_der, carrito_items)
+        
+        # Guardar referencias para actualizar luego
+        self.frame_productos_actual = frame_productos
+        self.platos_actual = platos
+    
+    def _obtener_ingredientes_plato(self, plato_id):
+        """Obtener ingredientes requeridos de un plato con sus cantidades"""
+        controller_platos = PlatosController()
+        success, ingredientes_info, msg = controller_platos.model.obtener_ingredientes_plato_completo(plato_id)
+        
+        if success and ingredientes_info:
+            return ingredientes_info
+        return []
+    
+    def _calcular_stock_disponible(self, ingrediente_id, carrito_items):
+        """Calcular stock disponible considerando lo que ya está en el carrito"""
+        controller_ing = IngredientesController()
+        success, ingrediente, msg = controller_ing.obtener_ingrediente(ingrediente_id)
+        
+        if not success:
+            return 0
+        
+        stock_actual = ingrediente.cantidad
+        
+        # Restar lo que ya está en el carrito
+        for plato_id, item in carrito_items.items():
+            cantidad_plato = item['cantidad']
+            ingredientes_plato = self._obtener_ingredientes_plato(item['plato'].id)
+            
+            # Buscar este ingrediente en los ingredientes del plato
+            for ing, cant_requerida, unidad in ingredientes_plato:
+                if ing.id == ingrediente_id:
+                    stock_actual -= (cant_requerida * cantidad_plato)
+                    break
+        
+        return stock_actual
+    
+    def _verificar_stock_ingredientes(self, plato, carrito_items):
+        """Verificar si hay suficientes ingredientes para agregar este plato"""
+        ingredientes_plato = self._obtener_ingredientes_plato(plato.id)
+        
+        if not ingredientes_plato:
+            return True, "✓ Disponible"
+        
+        ingredientes_faltantes = []
+        
+        for ingrediente, cantidad_requerida, unidad in ingredientes_plato:
+            stock_disponible = self._calcular_stock_disponible(ingrediente.id, carrito_items)
+            
+            if stock_disponible < cantidad_requerida:
+                falta = cantidad_requerida - stock_disponible
+                ingredientes_faltantes.append(
+                    f"{ingrediente.nombre}: faltan {falta:.1f} {unidad}"
+                )
+        
+        if ingredientes_faltantes:
+            msg = "Ingredientes insuficientes:\n" + "\n".join(ingredientes_faltantes)
+            return False, msg
+        
+        return True, "✓ Disponible"
+    
+    def _actualizar_productos_visual(self, frame_productos, platos, carrito_items):
+        """Actualizar visualización de productos cuando cambia el carrito"""
+        # Volver a dibujar todos los productos con estado actualizado
+        for widget in frame_productos.winfo_children():
+            widget.destroy()
+        
+        # Obtener categoría actual (todas si no hay selector)
+        categ_text = "Entrada"  # Default
+        self._mostrar_productos_categoria(categ_text, frame_productos, platos, carrito_items)
     
     def _crear_card_plato(self, parent, plato, carrito_items):
         """Crear un card interactivo para un plato"""
+        # Obtener ingredientes del plato
+        ingredientes_info = self._obtener_ingredientes_plato(plato.id)
+        
+        # Verificar si hay suficientes ingredientes
+        tiene_ingredientes, msg_ingredientes = self._verificar_stock_ingredientes(plato, carrito_items)
+        
         # Card del producto como frame
         card_frame = ctk.CTkFrame(
             parent,
@@ -772,13 +769,18 @@ class MesasPage(ctk.CTkFrame):
         
         # Función del click
         def on_click(event=None):
-            self._agregar_al_carrito(plato, carrito_items)
+            if tiene_ingredientes:
+                self._agregar_al_carrito(plato, carrito_items)
+                self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
+            else:
+                DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg_ingredientes)
         
         # Funciones para hover effect
         def on_enter(event=None):
-            card_frame.configure(fg_color="#F3F4F6")
-            card_frame.configure(border_color=config.COLORS["primary"])
-            card_frame.configure(border_width=2)
+            if tiene_ingredientes:
+                card_frame.configure(fg_color="#F3F4F6")
+                card_frame.configure(border_color=config.COLORS["primary"])
+                card_frame.configure(border_width=2)
         
         def on_leave(event=None):
             card_frame.configure(fg_color="white")
@@ -786,46 +788,77 @@ class MesasPage(ctk.CTkFrame):
             card_frame.configure(border_width=1)
         
         # Bindear eventos de clic en el frame
-        card_frame.bind("<Button-1>", on_click)
-        card_frame.bind("<Enter>", on_enter)
-        card_frame.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            card_frame.bind("<Button-1>", on_click)
+            card_frame.bind("<Enter>", on_enter)
+            card_frame.bind("<Leave>", on_leave)
         
         # Content dentro del frame
         content = ctk.CTkFrame(card_frame, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=12, pady=12)
         
         # Bindear también en el content para que funcione el click
-        content.bind("<Button-1>", on_click)
-        content.bind("<Enter>", on_enter)
-        content.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            content.bind("<Button-1>", on_click)
+            content.bind("<Enter>", on_enter)
+            content.bind("<Leave>", on_leave)
         
         # Nombre
         name_label = ctk.CTkLabel(
             content,
             text=plato.nombre,
-            text_color=config.COLORS["text_dark"],
+            text_color=config.COLORS["text_dark"] if tiene_ingredientes else "#9CA3AF",
             font=("Helvetica", 11, "bold"),
             wraplength=140
         )
         name_label.pack(anchor="w", pady=(0, 8))
-        name_label.bind("<Button-1>", on_click)
-        name_label.bind("<Enter>", on_enter)
-        name_label.bind("<Leave>", on_leave)
+        if tiene_ingredientes:
+            name_label.bind("<Button-1>", on_click)
+            name_label.bind("<Enter>", on_enter)
+            name_label.bind("<Leave>", on_leave)
         
         # Precio
         price_label = ctk.CTkLabel(
             content,
             text=f"${plato.precio:.2f}",
-            text_color=config.COLORS["primary"],
+            text_color=config.COLORS["primary"] if tiene_ingredientes else "#D1D5DB",
             font=("Helvetica", 13, "bold")
         )
-        price_label.pack(anchor="w")
-        price_label.bind("<Button-1>", on_click)
-        price_label.bind("<Enter>", on_enter)
-        price_label.bind("<Leave>", on_leave)
+        price_label.pack(anchor="w", pady=(0, 6))
+        if tiene_ingredientes:
+            price_label.bind("<Button-1>", on_click)
+            price_label.bind("<Enter>", on_enter)
+            price_label.bind("<Leave>", on_leave)
+        
+        # Mostrar estado de ingredientes
+        if not tiene_ingredientes:
+            estado_label = ctk.CTkLabel(
+                content,
+                text="❌ Sin ingredientes",
+                text_color="#EF4444",
+                font=("Helvetica", 9),
+                wraplength=140
+            )
+            estado_label.pack(anchor="w")
+            card_frame.configure(fg_color="#FEF2F2", border_color="#FECACA")
+        else:
+            estado_label = ctk.CTkLabel(
+                content,
+                text="✓ Disponible",
+                text_color="#10B981",
+                font=("Helvetica", 9)
+            )
+            estado_label.pack(anchor="w")
     
     def _agregar_al_carrito(self, plato, carrito_items):
-        """Agregar plato al carrito"""
+        """Agregar plato al carrito con validación de stock"""
+        # Verificar que hay ingredientes disponibles
+        tiene_ingredientes, msg = self._verificar_stock_ingredientes(plato, carrito_items)
+        
+        if not tiene_ingredientes:
+            DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg)
+            return False
+        
         if plato.id in carrito_items:
             carrito_items[plato.id]['cantidad'] += 1
         else:
@@ -835,9 +868,10 @@ class MesasPage(ctk.CTkFrame):
             }
         
         self._actualizar_carrito_visual(carrito_items)
+        return True
     
     def _actualizar_carrito_visual(self, carrito_items):
-        """Actualizar visualización del carrito"""
+        """Actualizar visualización del carrito con info de ingredientes"""
         # Limpiar carrito anterior
         for widget in self.frame_carrito_actual.winfo_children():
             widget.destroy()
@@ -895,6 +929,25 @@ class MesasPage(ctk.CTkFrame):
                 font=("Helvetica", 9)
             )
             price_label.pack(anchor="e", side="right")
+            
+            # Información de ingredientes
+            ingredientes_plato = self._obtener_ingredientes_plato(plato.id)
+            if ingredientes_plato:
+                ingredientes_frame = ctk.CTkFrame(content, fg_color="transparent")
+                ingredientes_frame.pack(fill="x", pady=(0, 6))
+                
+                for ingrediente, cant_requerida, unidad in ingredientes_plato:
+                    stock_disp = self._calcular_stock_disponible(ingrediente.id, carrito_items)
+                    cant_necesaria = cant_requerida * cantidad
+                    
+                    color_ing = "#10B981" if stock_disp >= cant_requerida else "#EF4444"
+                    ing_label = ctk.CTkLabel(
+                        ingredientes_frame,
+                        text=f"{ingrediente.nombre}: {stock_disp:.1f}/{cant_necesaria:.1f} {unidad}",
+                        text_color=color_ing,
+                        font=("Helvetica", 8)
+                    )
+                    ing_label.pack(anchor="w")
             
             # Controles cantidad y delete
             footer = ctk.CTkFrame(content, fg_color="transparent")
@@ -963,9 +1016,18 @@ class MesasPage(ctk.CTkFrame):
         self.label_total_actual.configure(text=f"${total:.2f}")
     
     def _cambiar_cantidad(self, plato_id, delta, carrito_items):
-        """Cambiar cantidad de un item"""
+        """Cambiar cantidad de un item con validación de stock"""
         if plato_id not in carrito_items:
             return
+        
+        # Si estamos aumentando, validar que hay ingredientes
+        if delta > 0:
+            plato = carrito_items[plato_id]['plato']
+            tiene_ingredientes, msg = self._verificar_stock_ingredientes(plato, carrito_items)
+            
+            if not tiene_ingredientes:
+                DialogUtils.mostrar_error("⚠️ Ingredientes insuficientes", msg)
+                return
         
         carrito_items[plato_id]['cantidad'] += delta
         
@@ -973,6 +1035,10 @@ class MesasPage(ctk.CTkFrame):
             del carrito_items[plato_id]
         
         self._actualizar_carrito_visual(carrito_items)
+        
+        # Actualizar visualización de productos
+        if hasattr(self, 'frame_productos_actual'):
+            self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
     
     def _eliminar_del_carrito(self, plato_id, carrito_items):
         """Eliminar item del carrito"""
@@ -980,6 +1046,10 @@ class MesasPage(ctk.CTkFrame):
             del carrito_items[plato_id]
         
         self._actualizar_carrito_visual(carrito_items)
+        
+        # Actualizar visualización de productos
+        if hasattr(self, 'frame_productos_actual'):
+            self._actualizar_productos_visual(self.frame_productos_actual, self.platos_actual, carrito_items)
   
     def _procesar_nuevo_pedido(self, mesa, combo_mesero, carrito_items, meseros, dialog, label_total):
         """Procesar y crear el nuevo pedido - Usando cliente genérico global"""
@@ -1110,7 +1180,6 @@ class MesasPage(ctk.CTkFrame):
         else:
             print(f"Error al crear cliente temporal: {msg}")
             return None
-    
         
     def crear_mesa(self):
         """Muestra el diálogo para crear una nueva mesa sin vista previa"""

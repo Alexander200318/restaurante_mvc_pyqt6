@@ -52,7 +52,7 @@ class PlatoFormDialog(ctk.CTkToplevel):
         self._crear_campos_plato()
         
         # --- COLUMNA DERECHA: INGREDIENTES ---
-        self.frame_ingredientes = ctk.CTkFrame(self, fg_color="#F9FAFB", corner_radius=10) # Fondo gris muy claro
+        self.frame_ingredientes = ctk.CTkFrame(self, fg_color="#F9FAFB", corner_radius=10)
         self.frame_ingredientes.grid(row=1, column=1, sticky="nsew", padx=20, pady=(0, 20))
         
         self._crear_gestion_ingredientes()
@@ -104,13 +104,12 @@ class PlatoFormDialog(ctk.CTkToplevel):
             
             # También deshabilitar botones de eliminar en la lista
             for widget in self.lista_scroll.winfo_children():
-                # El frame row contiene label y botón
                 if isinstance(widget, ctk.CTkFrame):
                     for child in widget.winfo_children():
                         if isinstance(child, ctk.CTkButton):
                             child.configure(state=state)
         except AttributeError:
-            pass # Los widgets aún no existen
+            pass
 
     def _crear_campos_plato(self):
         self.vars = {}
@@ -128,7 +127,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
         
         categorias = self.controller.obtener_categorias_disponibles()
         
-        # --- Helper UI ---
         # Definir el grid layout weights
         self.frame_datos.columnconfigure(0, weight=1)
         self.frame_datos.columnconfigure(1, weight=1)
@@ -169,7 +167,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
         err_cat.grid(row=8, column=0, sticky="ew", padx=10)
         self.error_labels['categoria'] = err_cat
 
-
         # 4. Disponibilidad (Switch - Right) - Row 6
         lbl_disp = ctk.CTkLabel(self.frame_datos, text="Estado del Plato", font=("Segoe UI", 12, "bold"), text_color="#374151")
         lbl_disp.grid(row=6, column=1, sticky="w", padx=10, pady=(10, 0))
@@ -196,8 +193,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
         err_desc.grid(row=11, column=0, columnspan=2, sticky="ew", padx=10)
         self.error_labels['descripcion'] = err_desc
 
-
-
     def _crear_gestion_ingredientes(self):
         # Título sección
         ctk.CTkLabel(
@@ -208,33 +203,14 @@ class PlatoFormDialog(ctk.CTkToplevel):
         # --- SELECTOR ---
         frame_add = ctk.CTkFrame(self.frame_ingredientes, fg_color="transparent")
         frame_add.pack(fill="x", padx=15, pady=(0, 15))
-
         
-        # Obtener lista de ingredientes disponibles (Nombre + Unidad)
+        # Obtener lista de ingredientes disponibles
         success, all_ings, _ = self.ing_controller.obtener_todos_ingredientes()
-        self.map_ingredientes = {} # nombre -> objeto completo
-        nombres_ing = []
-        if success:
-            for ing in all_ings:
-                # ing es tupla o objeto? El controller retorna tupla formateada en 'obtener_todos_ingredientes'
-                # Necesitamos objetos o datos crudos.
-                # 'obtener_todos_ingredientes' en controller retorna formateados para tabla.
-                # Mejor usamos 'model.obtener_todos_ingredientes' directamente o 'obtener_selectorlist' si existe?
-                pass
-        
-        # Necesitamos una forma de obtener ID y Unidad dado el Nombre seleccionado
-        # Voy a asumir que controller tiene metodo para obtener raw o hare un truco
-        # Mejor cambio el controller de Ingredientes para darme lista cruda o uso el modelo
-        
-        # Por ahora usare el metodo `obtener_todos_ingredientes` que retorna formateado
-        # (id, nombre, cantidad, unidad, precio, estado, cant_min, proveedor)
-        # ID=0, Nombre=1, Cantidad=2, Unidad=3
-        
         self.ings_disponibles = []
         if success: 
             self.ings_disponibles = all_ings
 
-        nombres_combo = [f"{i[1]} ({i[3]})" for i in self.ings_disponibles] # Nombre (Unidad)
+        nombres_combo = [f"{i[1]} ({i[3]})" for i in self.ings_disponibles]
         
         self.combo_ing = ctk.CTkComboBox(frame_add, values=nombres_combo, width=200, height=35)
         self.combo_ing.pack(side="left", padx=(0, 10), expand=True, fill="x")
@@ -269,7 +245,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
             row = ctk.CTkFrame(self.lista_scroll, fg_color="transparent")
             row.pack(fill="x", pady=2)
             
-            # Formato item: {'id', 'nombre', 'cantidad', 'unidad'}
             txt = f"{item['cantidad']} {item['unidad']} de {item['nombre']}"
             
             ctk.CTkLabel(row, text=txt, text_color="#374151", anchor="w").pack(side="left", padx=5)
@@ -295,7 +270,7 @@ class PlatoFormDialog(ctk.CTkToplevel):
             DialogUtils.mostrar_error("Error", "Cantidad inválida", self)
             return
 
-        # Buscar ID y nombre real basado en el texto del combo "Nombre (Unidad)"
+        # Buscar ID y nombre real basado en el texto del combo
         ing_obj = None
         for ing in self.ings_disponibles:
             if f"{ing[1]} ({ing[3]})" == seleccion_texto:
@@ -304,7 +279,6 @@ class PlatoFormDialog(ctk.CTkToplevel):
         
         if not ing_obj: return
         
-        # ing_obj structure from controller: (id, nombre, cantidad, unidad, ...)
         nuevo_item = {
             'id': ing_obj[0],
             'nombre': ing_obj[1],
@@ -312,11 +286,11 @@ class PlatoFormDialog(ctk.CTkToplevel):
             'unidad': ing_obj[3]
         }
         
-        # Verificar duplicados y sumar, o rechazar
+        # Verificar duplicados y sumar
         existe = False
         for cur in self.ingredientes_actuales:
             if cur['id'] == nuevo_item['id']:
-                cur['cantidad'] += cant # Sumar cantidad
+                cur['cantidad'] += cant
                 existe = True
                 break
         
@@ -331,6 +305,41 @@ class PlatoFormDialog(ctk.CTkToplevel):
             self.ingredientes_actuales.pop(index)
             self._renderizar_lista_ingredientes()
 
+    def _verificar_stock_ingredientes(self):
+        """Verifica si hay suficiente stock de todos los ingredientes"""
+        if not self.ingredientes_actuales:
+            return True, []
+        
+        sin_stock = []
+        for item in self.ingredientes_actuales:
+            # Obtener stock actual del ingrediente
+            success, ing_completo, _ = self.ing_controller.obtener_ingrediente(item['id'])
+            if success and ing_completo:
+                # Determinar la estructura del objeto retornado
+                if hasattr(ing_completo, 'cantidad'):
+                    stock_actual = ing_completo.cantidad  # Si es un objeto con atributo cantidad
+                elif isinstance(ing_completo, dict) and 'cantidad' in ing_completo:
+                    stock_actual = ing_completo['cantidad']  # Si es un diccionario
+                elif isinstance(ing_completo, (list, tuple)) and len(ing_completo) > 2:
+                    # Si es una tupla, verificar dónde está la cantidad
+                    # En tu caso, en IngredientesPage, los datos son (id, nombre, cantidad, unidad, precio, ...)
+                    # El índice 2 es la cantidad
+                    stock_actual = ing_completo[2] if len(ing_completo) > 2 else 0
+                else:
+                    stock_actual = 0
+                
+                # Debug: imprimir para verificar
+                
+                if stock_actual < item['cantidad']:
+                    sin_stock.append({
+                        'nombre': item['nombre'],
+                        'necesita': item['cantidad'],
+                        'stock_disponible': stock_actual,
+                        'unidad': item['unidad']
+                    })
+        
+        return len(sin_stock) == 0, sin_stock
+
     def _guardar(self):
         # 0. Limpiar errores previos
         for key, lbl in self.error_labels.items():
@@ -340,14 +349,12 @@ class PlatoFormDialog(ctk.CTkToplevel):
         datos = {}
         hay_errores = False
 
-        # --- Helper para validar ---
         def set_error(key, msg):
-             if key in self.error_labels:
-                 self.error_labels[key].configure(text=msg)
-                 
+            if key in self.error_labels:
+                self.error_labels[key].configure(text=msg)
+             
         # 1. Nombre
         nombre = self.vars['nombre'].get().strip()
-
         if not nombre:
             set_error('nombre', "Campo requerido")
             hay_errores = True
@@ -362,8 +369,8 @@ class PlatoFormDialog(ctk.CTkToplevel):
             try:
                 p = float(s_precio)
                 if p < 0:
-                     set_error('precio', "No puede ser negativo")
-                     hay_errores = True
+                    set_error('precio', "No puede ser negativo")
+                    hay_errores = True
                 datos['precio'] = p
             except ValueError:
                 set_error('precio', "Debe ser un número")
@@ -372,8 +379,8 @@ class PlatoFormDialog(ctk.CTkToplevel):
         # 3. Categoría
         cat = self.vars['categoria'].get()
         if not cat:
-             set_error('categoria', "Campo requerido")
-             hay_errores = True
+            set_error('categoria', "Campo requerido")
+            hay_errores = True
         datos['categoria'] = cat
 
         # 4. Tiempo
@@ -385,8 +392,8 @@ class PlatoFormDialog(ctk.CTkToplevel):
             try:
                 t = int(s_tiempo)
                 if t <= 0:
-                     set_error('tiempo', "Debe ser mayor a 0")
-                     hay_errores = True
+                    set_error('tiempo', "Debe ser mayor a 0")
+                    hay_errores = True
                 datos['tiempo_preparacion'] = t
             except ValueError:
                 set_error('tiempo', "Debe ser entero")
@@ -398,21 +405,36 @@ class PlatoFormDialog(ctk.CTkToplevel):
             set_error('descripcion', "Campo requerido")
             hay_errores = True
         elif len(desc) < 10:
-             set_error('descripcion', "Mínimo 10 caracteres")
-             hay_errores = True
+            set_error('descripcion', "Mínimo 10 caracteres")
+            hay_errores = True
         datos['descripcion'] = desc
 
-        # 6. Disponible
-        datos['disponible'] = bool(self.vars['disponible'].get())
+        # 6. Disponible (Usuario)
+        datos['disponible_usuario'] = bool(self.vars['disponible'].get())
         
         # 7. INGREDIENTES (Validación requerida, excepto Productos)
         es_producto = (datos.get('categoria') == config.PlatoCategoría.PRODUCTO.value)
         if not es_producto and not self.ingredientes_actuales:
-             self.lbl_error_ingredientes.configure(text="⚠️ Debes agregar al menos un ingrediente a la receta")
-             hay_errores = True
+            self.lbl_error_ingredientes.configure(text="⚠️ Debes agregar al menos un ingrediente a la receta")
+            hay_errores = True
 
         if hay_errores: 
             return
+
+        # ================= VERIFICAR STOCK DE INGREDIENTES =================
+        # Si el plato no es producto, verificar stock
+        estado_final = datos['disponible_usuario']
+        
+        if not es_producto:
+            stock_suficiente, sin_stock = self._verificar_stock_ingredientes()
+            
+            if not stock_suficiente:
+                estado_final = False  # No disponible automáticamente
+                mensaje_stock = "\n".join([f"• {item['nombre']}: necesita {item['necesita']} {item['unidad']}, disponible {item['stock_disponible']} {item['unidad']}" for item in sin_stock])
+                DialogUtils.mostrar_advertencia(
+                    "⚠️ Stock Insuficiente", 
+                    f"No hay suficiente stock de los siguientes ingredientes:\n\n{mensaje_stock}\n\nEl plato se guardará como NO DISPONIBLE."
+                )
 
         # ================= GUARDADO =================
 
@@ -424,7 +446,7 @@ class PlatoFormDialog(ctk.CTkToplevel):
                 'cantidad': item['cantidad']
             })
 
-        # 3. Llamar Controller
+        # Llamar Controller
         if self.plato_data:
             # EDITAR
             success, _, msg = self.controller.actualizar_plato(
@@ -436,12 +458,12 @@ class PlatoFormDialog(ctk.CTkToplevel):
                 tiempo_preparacion=datos['tiempo_preparacion'],
                 ingredientes=ingredientes_para_guardar
             )
-            # Actualizar estado (disponible/agotado)
-            self.controller.cambiar_disponibilidad(self.plato_data.id, datos['disponible'])
-            
+            if success:
+                # Actualizar estado según verificación de stock
+                self.controller.cambiar_disponibilidad(self.plato_data.id, estado_final)
         else:
-            # CREAR
-            success, _, msg = self.controller.crear_plato(
+            # CREAR - Sin el parámetro disponible
+            success, plato_creado, msg = self.controller.crear_plato(
                 nombre=datos['nombre'],
                 precio=datos['precio'],
                 categoria=datos['categoria'],
@@ -449,10 +471,15 @@ class PlatoFormDialog(ctk.CTkToplevel):
                 tiempo_preparacion=datos['tiempo_preparacion'],
                 ingredientes=ingredientes_para_guardar
             )
+            
+            # Si se creó exitosamente, actualizar el estado según verificación de stock
+            if success and plato_creado:
+                self.controller.cambiar_disponibilidad(plato_creado.id, estado_final)
 
         if success:
             self.destroy()
-            if self.on_success: self.on_success()
+            if self.on_success: 
+                self.on_success()
             DialogUtils.mostrar_exito("Éxito", "Plato guardado correctamente", self.master)
         else:
             DialogUtils.mostrar_error("Error al guardar", msg, self)
@@ -502,10 +529,29 @@ class MenuPage(ctk.CTkFrame):
             font=("Segoe UI", 24, "bold")
         )
         titulo.pack(side="left")
-
-        # Botón Nuevo Plato (EN EL HEADER)
+        
+        # Frame para los botones del header
+        header_buttons = ctk.CTkFrame(header_content, fg_color="transparent")
+        header_buttons.pack(side="right")
+        
+        # Botón Actualizar (nuevo)
+        btn_actualizar = ctk.CTkButton(
+            header_buttons,
+            text="🔄 Actualizar",
+            command=self.actualizar_tabla,
+            fg_color="#3B82F6", 
+            hover_color="#2563EB",
+            text_color="white",
+            font=("Segoe UI", 13, "bold"),
+            height=40,
+            corner_radius=10,
+            width=120
+        )
+        btn_actualizar.pack(side="left", padx=(0, 10))
+        
+        # Botón Nuevo Plato
         btn_nuevo = ctk.CTkButton(
-            header_content,
+            header_buttons,
             text="＋ Nuevo Plato",
             command=self.crear_plato,
             fg_color=config.COLORS["success"], 
@@ -516,7 +562,7 @@ class MenuPage(ctk.CTkFrame):
             corner_radius=10,
             width=160
         )
-        btn_nuevo.pack(side="right")
+        btn_nuevo.pack(side="left")
         
         # ===== FRAME PRINCIPAL (Scrollable para pantallas pequeñas) =====
         self.frame_scroll = ctk.CTkScrollableFrame(
@@ -531,6 +577,88 @@ class MenuPage(ctk.CTkFrame):
         # ===== CONTENEDOR PRINCIPAL (Tabla + Panel) =====
         self._crear_contenedor_principal()
     
+    def actualizar_tabla(self):
+        """Forzar actualización completa de todos los platos verificando stock"""
+        success, datos, msg = self.controller.obtener_todos_platos_formateados()
+        
+        if success:
+            # Verificar y actualizar estado de cada plato basado en stock
+            for plato in datos:
+                self._verificar_y_actualizar_estado_plato(plato[0])
+            
+            # Recargar datos actualizados
+            success, datos, msg = self.controller.obtener_todos_platos_formateados()
+            if success:
+                self.todos_los_platos = datos
+                self.pagina_actual = 1
+                self._actualizar_vista_tabla()
+                
+                # Actualizar métricas
+                self._actualizar_metricas()
+                
+                # Contar cuántos están disponibles después de la actualización
+                disponibles = sum(1 for p in datos if p[5] == "disponible")
+                
+                DialogUtils.mostrar_exito("Actualización", f"Lista de platos actualizada. {disponibles} platos disponibles.")
+            else:
+                DialogUtils.mostrar_error("Error", msg)
+        else:
+            DialogUtils.mostrar_error("Error", msg)
+
+    def refrescar_tabla(self):
+        """Refrescar datos de la tabla con paginación"""
+        success, datos, msg = self.controller.obtener_todos_platos_formateados()
+        
+        if success:
+            # Verificar estado de cada plato basado en stock
+            for plato in datos:
+                self._verificar_y_actualizar_estado_plato(plato[0])
+            
+            # Volver a obtener los datos actualizados
+            success, datos, msg = self.controller.obtener_todos_platos_formateados()
+            self.todos_los_platos = datos
+            self.pagina_actual = 1
+            self._actualizar_vista_tabla()
+            
+            # Actualizar métricas
+            self._actualizar_metricas()
+        else:
+            DialogUtils.mostrar_error("Error", msg)
+    def _actualizar_metricas(self):
+        """Actualizar las tarjetas de métricas"""
+        # Obtener los datos actualizados
+        success, platos, _ = self.controller.obtener_todos_platos_formateados()
+        if not success:
+            return
+        
+        total_platos = len(platos)
+        disponibles = sum(1 for p in platos if p[5] == "disponible")
+        no_disponibles = total_platos - disponibles
+        
+        # Buscar y actualizar las métricas en el frame_scroll
+        for widget in self.frame_scroll.winfo_children():
+            if isinstance(widget, ctk.CTkFrame):
+                # Buscar el container de métricas
+                container = widget
+                if container.winfo_children():
+                    # Actualizar las cards
+                    for i, card in enumerate(container.winfo_children()):
+                        if isinstance(card, ctk.CTkFrame):
+                            # Buscar el label con el valor
+                            for inner in card.winfo_children():
+                                if isinstance(inner, ctk.CTkFrame):
+                                    for label in inner.winfo_children():
+                                        if isinstance(label, ctk.CTkLabel):
+                                            if i == 0:  # Total Platos
+                                                if label.cget("font") == ("Segoe UI", 22, "bold"):
+                                                    label.configure(text=str(total_platos))
+                                            elif i == 1:  # Disponibles
+                                                if label.cget("font") == ("Segoe UI", 22, "bold"):
+                                                    label.configure(text=str(disponibles))
+                                            elif i == 2:  # Agotados
+                                                if label.cget("font") == ("Segoe UI", 22, "bold"):
+                                                    label.configure(text=str(no_disponibles))
+
     def _crear_metricas(self):
         """Tarjetas de métricas modernas"""
         container = ctk.CTkFrame(self.frame_scroll, fg_color="transparent")
@@ -816,14 +944,57 @@ class MenuPage(ctk.CTkFrame):
             corner_radius=10
         )
         btn_eliminar.pack(fill="x", pady=0)
+
+    # ==========================
+    # LOGICA DE NEGOCIO
+    # ==========================
+    
+    def _verificar_y_actualizar_estado_plato(self, plato_id):
+        """Verifica si todos los ingredientes tienen stock y actualiza el estado del plato"""
+        # Obtener ingredientes del plato
+        success, ingredientes, msg = self.controller.obtener_ingredientes_plato_completo(plato_id)
         
-        # Espacio final flexible (empuja todo arriba)
-        # ctk.CTkLabel(content, text="").pack(expand=True)  <-- ELIMINADO para evitar scroll
-
-
-    # ==========================
-    # LOGICA DE NEGOCIO (INTACTA)
-    # ==========================
+        if not success:
+            return
+        
+        # Obtener el plato para saber su categoría
+        success, plato, msg = self.controller.obtener_plato(plato_id)
+        if not success or not plato:
+            return
+        
+        # Si es producto, no depende de ingredientes
+        if plato.categoria == config.PlatoCategoría.PRODUCTO:
+            return
+        
+        # Verificar stock de cada ingrediente
+        todos_con_stock = True
+        for ing in ingredientes:
+            # Obtener stock actual del ingrediente
+            success, ing_completo, _ = self.ingredientes_controller.obtener_ingrediente(ing['id'])
+            if success and ing_completo:
+                # Usar la misma lógica que en _verificar_stock_ingredientes
+                if hasattr(ing_completo, 'cantidad'):
+                    stock_actual = ing_completo.cantidad
+                elif isinstance(ing_completo, dict) and 'cantidad' in ing_completo:
+                    stock_actual = ing_completo['cantidad']
+                elif isinstance(ing_completo, (list, tuple)) and len(ing_completo) > 2:
+                    stock_actual = ing_completo[2]
+                else:
+                    stock_actual = 0
+                
+                # Debug
+                
+                if stock_actual < ing['cantidad']:
+                    todos_con_stock = False
+                    break
+        
+        # Actualizar estado del plato según disponibilidad de stock
+        estado_actual = plato.estado.value
+        
+        if todos_con_stock and estado_actual != "disponible":
+            self.controller.cambiar_disponibilidad(plato_id, True)
+        elif not todos_con_stock and estado_actual == "disponible":
+            self.controller.cambiar_disponibilidad(plato_id, False)
     
     def _on_plato_select(self, datos):
         """Cuando selecciona un plato"""
@@ -858,12 +1029,21 @@ class MenuPage(ctk.CTkFrame):
         success, datos, msg = self.controller.obtener_todos_platos_formateados()
         
         if success:
-            self.todos_los_platos = datos
-            self.pagina_actual = 1
-            self._actualizar_vista_tabla()
+            # Verificar estado de cada plato basado en stock
+            for plato in datos:
+                self._verificar_y_actualizar_estado_plato(plato[0])
+            
+            # Volver a obtener los datos actualizados
+            success, datos, msg = self.controller.obtener_todos_platos_formateados()
+            if success:
+                self.todos_los_platos = datos
+                self.pagina_actual = 1
+                self._actualizar_vista_tabla()
+                self._actualizar_metricas()
+            else:
+                DialogUtils.mostrar_error("Error", msg)
         else:
             DialogUtils.mostrar_error("Error", msg)
-
     def _cambiar_pagina(self, direccion):
         """Cambiar página actual"""
         total_items = len(self.todos_los_platos)

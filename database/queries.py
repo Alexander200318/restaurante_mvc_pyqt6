@@ -177,7 +177,8 @@ class QueriesManager:
         resultados = session.query(
             Plato.nombre,
             func.sum(DetallePedido.cantidad).label('total_vendido'),
-            func.sum(DetallePedido.subtotal).label('ingresos')
+            func.sum(DetallePedido.subtotal).label('ingresos'),
+            Plato.categoria  # Agregamos la categoría
         ).join(
             DetallePedido, Plato.id == DetallePedido.plato_id
         ).join(
@@ -188,7 +189,7 @@ class QueriesManager:
                 config.PedidoEstado.LISTO
             ])
         ).group_by(
-            Plato.id, Plato.nombre
+            Plato.id, Plato.nombre, Plato.categoria
         ).order_by(
             func.sum(DetallePedido.cantidad).desc()
         ).limit(limite).all()

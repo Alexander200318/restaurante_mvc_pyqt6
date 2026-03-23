@@ -149,6 +149,15 @@ class ClientesModel(BaseModel):
             ).all()
         
         return self._obtener_con_manejo_errores(_obtener)
+
+    def buscar_cliente_por_cedula(self, cedula: str) -> Tuple[bool, Optional[Cliente], str]:
+        """Buscar cliente por número de cédula"""
+        def _buscar(session):
+            return session.query(Cliente).filter(Cliente.cedula == cedula).first()
+        
+        return self._obtener_con_manejo_errores(_buscar)
+        
+        return self._obtener_con_manejo_errores(_obtener)
     
     def eliminar_cliente(self, cliente_id: int) -> Tuple[bool, None, str]:
         """Eliminar un cliente"""

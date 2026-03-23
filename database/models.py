@@ -74,9 +74,25 @@ class Empleado(Base):
     
     # Relaciones
     pedidos = relationship("Pedido", back_populates="empleado")
+    turnos = relationship("Turno", back_populates="empleado", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Empleado {self.nombre} ({self.puesto})>"
+
+class Turno(Base):
+    """Modelo de Turno de Trabajo"""
+    __tablename__ = "turnos"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    empleado_id = Column(Integer, ForeignKey('empleados.id'), nullable=False)
+    fecha_inicio = Column(DateTime, default=datetime.now, nullable=False)
+    fecha_fin = Column(DateTime, nullable=True)
+    
+    # Relaciones
+    empleado = relationship("Empleado", back_populates="turnos")
+    
+    def __repr__(self):
+        return f"<Turno {self.id} Empleado: {self.empleado_id}>"
 
 class Ingrediente(Base):
     """Modelo de Ingrediente"""

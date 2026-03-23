@@ -242,7 +242,14 @@ class TreeViewWidget(ctk.CTkFrame):
         for item in self.arbol.get_children():
             self.arbol.delete(item)
         self.items_datos.clear()
-    
+
+    def actualizar_celda(self, item_id, columna_id, valor):
+        """Actualiza el valor de una celda específica usando ID de columna"""
+        try:
+            self.arbol.set(item_id, columna_id, valor)
+        except Exception:
+            pass
+
     def obtener_seleccionada(self):
         """Obtener datos de fila seleccionada"""
         selection = self.arbol.selection()
