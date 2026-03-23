@@ -424,7 +424,7 @@ class MesasPage(ctk.CTkFrame):
         # Crear dialog
         dialog = ctk.CTkToplevel()
         dialog.title(f"Nuevo Pedido - Mesa {mesa.numero}")
-        dialog.geometry("900x550")
+        dialog.geometry("1200x700")
         dialog.resizable(True, True)
         dialog.attributes('-topmost', True)  # Mantener en el frente
         dialog.grab_set()  # Hacerla modal
