@@ -6,10 +6,36 @@ from enum import Enum
 from pathlib import Path
 
 # Rutas
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE_PATH = BASE_DIR / "restaurante.db"
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+import os
+import sys
+import shutil
+from pathlib import Path
 
+def obtener_ruta_db():
+    carpeta = os.path.join(os.getenv("APPDATA"), "RestauranteApp")
+    os.makedirs(carpeta, exist_ok=True)
+    return os.path.join(carpeta, "restaurante.db")
+
+def obtener_ruta_base():
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    else:
+        return Path(__file__).resolve().parent
+
+def inicializar_db():
+    ruta_destino = obtener_ruta_db()
+    base_dir = obtener_ruta_base()
+    ruta_origen = base_dir / "restaurante.db"
+
+    if not os.path.exists(ruta_destino):
+        shutil.copy(ruta_origen, ruta_destino)
+
+# Ejecutar al iniciar
+inicializar_db()
+
+# USAR ESTA RUTA PARA TODO
+DATABASE_PATH = obtener_ruta_db()
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 # Tema de customtkinter
 APPEARANCE = "dark"  # "light" | "dark"
 
